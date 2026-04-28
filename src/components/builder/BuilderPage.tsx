@@ -15,6 +15,8 @@ import { Sparkles, Wand2, Bug, Smartphone, Zap, Rocket, Download, Loader2, Send 
 import { toast } from "sonner";
 import { CREDIT_COSTS, CreditAction } from "@/lib/credit-costs";
 import { localStore } from "@/lib/local-store";
+import { projectsService } from "@/services/projects.service";
+import { supabaseClient } from "@/integrations/supabase/client";
 import { generateLocal } from "@/lib/local-generator";
 
 interface Msg { role: "user" | "ai"; content: string; }
@@ -39,15 +41,17 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   const [currentProjectId, setCurrentProjectId] = useState<string | undefined>(projectId);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Cargar proyecto existente desde el store local
+  // Cargar proyecto existente vía service (Supabase si hay sesión, si no local)
   useEffect(() => {
     if (!projectId) return;
-    const proj = localStore.getProject(projectId);
-    if (proj) {
+    let alive = true;
+    projectsService.get(projectId).then((proj) => {
+      if (!alive || !proj) return;
       setName(proj.name);
       setFiles(proj.files);
       setCurrentProjectId(proj.id);
-    }
+    });
+    return () => { alive = false; };
   }, [projectId]);
 
   useEffect(() => {
@@ -56,16 +60,16 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
 
   const html = files.find((f) => f.path === "index.html")?.content || "";
 
-  const persistProject = (n: string, fs: FileItem[], p: string, description?: string) => {
-    const proj = localStore.saveProject({
+  const persistProject = async (n: string, fs: FileItem[], p: string, description?: string) => {
+    const id = await projectsService.save({
       id: currentProjectId,
       name: n,
       description: description ?? null,
       prompt: p,
       files: fs,
     });
-    if (!currentProjectId) setCurrentProjectId(proj.id);
-    return proj.id;
+    if (!currentProjectId) setCurrentProjectId(id);
+    return id;
   };
 
   const runAction = async (
@@ -120,12 +124,26 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         },
       ]);
 
-      const pid = persistProject(
+      const pid = await persistProject(
         mode === "generate" ? result.name : name,
         newFiles,
         finalPrompt,
         result.description,
       );
+      // Registrar la generación: en Supabase si hay sesión, si no en el espejo local.
+      if (supabaseClient) {
+        const { data: sess } = await supabaseClient.auth.getSession();
+        if (sess.session) {
+          await supabaseClient.from("generations").insert({
+            user_id: sess.session.user.id,
+            project_id: pid,
+            prompt: finalPrompt,
+            response_summary: result.description,
+            cost: CREDIT_COSTS[action],
+            model: result.model,
+          });
+        }
+      }
       localStore.recordGeneration({
         project_id: pid,
         prompt: finalPrompt,
@@ -149,10 +167,14 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
     setFiles((fs) => fs.map((f) => (f.path === path ? { ...f, content } : f)));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (files.length === 0) return;
-    persistProject(name, files, prompt);
-    toast.success("Cambios guardados");
+    try {
+      await persistProject(name, files, prompt);
+      toast.success("Cambios guardados");
+    } catch (e: any) {
+      toast.error("No se pudo guardar", { description: e?.message });
+    }
   };
 
   const handleExport = async () => {

@@ -8,6 +8,11 @@ import { canUseSupabase } from "./backend";
 import { CREDIT_LABELS, type CreditAction, CREDIT_COSTS } from "@/lib/credit-costs";
 
 export const creditsService = {
+  /** True si la operación se está sirviendo desde el store local (sin sesión Supabase). */
+  async isLocal(): Promise<boolean> {
+    return !(await canUseSupabase());
+  },
+
   async getBalance(): Promise<{ balance: number; unlimited: boolean }> {
     if (await canUseSupabase()) {
       const { data: sess } = await supabaseClient!.auth.getSession();
@@ -48,5 +53,15 @@ export const creditsService = {
       if (data) return data;
     }
     return localStore.listTransactions().slice(0, 50);
+  },
+
+  /** Sólo aplica en modo local. En Supabase los créditos se cargan vía pagos/admin. */
+  addDemoLocal(amount: number, reason: string) {
+    localStore.addCredits(amount, reason);
+  },
+
+  toggleUnlimitedLocal() {
+    const c = localStore.getCredits();
+    localStore.setUnlimited(!c.unlimited);
   },
 };

@@ -6,13 +6,16 @@ import type { Database } from './types';
 function readEnv() {
   const env = (typeof import.meta !== 'undefined' ? (import.meta as any).env : {}) || {};
   const proc = (typeof process !== 'undefined' ? process.env : {}) || {};
+  // Variable canónica: VITE_SUPABASE_ANON_KEY.
+  // Aceptamos los alias antiguos sólo por compatibilidad transitoria.
   const url =
     env.VITE_SUPABASE_URL ||
     proc.SUPABASE_URL ||
     env.SUPABASE_URL;
   const key =
-    env.VITE_SUPABASE_PUBLISHABLE_KEY ||
     env.VITE_SUPABASE_ANON_KEY ||
+    env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    proc.SUPABASE_ANON_KEY ||
     proc.SUPABASE_PUBLISHABLE_KEY ||
     env.SUPABASE_PUBLISHABLE_KEY;
   return { url: url as string | undefined, key: key as string | undefined };

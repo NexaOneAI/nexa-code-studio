@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Trash2, Sparkles, FolderKanban } from "lucide-react";
 import { toast } from "sonner";
-import { localStore, subscribeStore, type LocalProject } from "@/lib/local-store";
+import { subscribeStore } from "@/lib/local-store";
+import { projectsService, type ProjectSummary } from "@/services/projects.service";
 
 export const Route = createFileRoute("/_app/projects")({
   head: () => ({ meta: [{ title: "Proyectos — Nexa One" }] }),
@@ -11,22 +12,32 @@ export const Route = createFileRoute("/_app/projects")({
 });
 
 function ProjectsPage() {
-  const [items, setItems] = useState<LocalProject[]>([]);
+  const [items, setItems] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const load = () => {
-      setItems(localStore.listProjects());
+    let alive = true;
+    const load = async () => {
+      const list = await projectsService.list();
+      if (!alive) return;
+      setItems(list);
       setLoading(false);
     };
     load();
-    return subscribeStore(load);
+    const off = subscribeStore(load);
+    return () => { alive = false; off(); };
   }, []);
 
-  const remove = (id: string) => {
+  const remove = async (id: string) => {
     if (!confirm("¿Eliminar este proyecto?")) return;
-    localStore.deleteProject(id);
+    try {
+      await projectsService.remove(id);
+    } catch (e: any) {
+      toast.error("Error al eliminar", { description: e?.message });
+      return;
+    }
     toast.success("Proyecto eliminado");
+    setItems((it) => it.filter((p) => p.id !== id));
   };
 
   return (
