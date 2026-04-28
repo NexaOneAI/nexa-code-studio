@@ -1,4 +1,4 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Sparkles, Zap, Code2, Eye, Download, Shield, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
@@ -19,8 +19,8 @@ function Landing() {
       <header className="container mx-auto flex items-center justify-between px-4 py-6">
         <Logo />
         <div className="flex gap-2">
-          <Button asChild variant="ghost"><Link to="/login">Entrar</Link></Button>
-          <Button asChild className="bg-gradient-primary border-0"><Link to="/register">Empezar gratis</Link></Button>
+          <Button asChild variant="ghost"><Link to="/dashboard">Dashboard</Link></Button>
+          <Button asChild className="bg-gradient-primary border-0"><Link to="/builder">Empezar a construir</Link></Button>
         </div>
       </header>
 
@@ -36,9 +36,9 @@ function Landing() {
         </p>
         <div className="mt-10 flex flex-wrap justify-center gap-3">
           <Button asChild size="lg" className="bg-gradient-primary border-0 shadow-glow">
-            <Link to="/register">Crear cuenta — 10 créditos gratis <ArrowRight className="ml-2 h-4 w-4" /></Link>
+            <Link to="/builder">Crear mi primera app — 25 créditos gratis <ArrowRight className="ml-2 h-4 w-4" /></Link>
           </Button>
-          <Button asChild size="lg" variant="outline"><Link to="/login">Ya tengo cuenta</Link></Button>
+          <Button asChild size="lg" variant="outline"><Link to="/dashboard">Ver dashboard</Link></Button>
         </div>
 
         <div className="mt-24 grid gap-6 md:grid-cols-3">

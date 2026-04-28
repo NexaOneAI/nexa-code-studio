@@ -1,19 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { useCredits } from "@/hooks/useCredits";
 import { CREDIT_COSTS, CREDIT_LABELS } from "@/lib/credit-costs";
 import { Button } from "@/components/ui/button";
-import { CreditCard, Check } from "lucide-react";
+import { CreditCard, Check, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { localStore, subscribeStore, type LocalTx } from "@/lib/local-store";
 
 export const Route = createFileRoute("/_app/credits")({
   head: () => ({ meta: [{ title: "Créditos — Nexa One" }] }),
   component: CreditsPage,
 });
-
-interface Tx { id: string; amount: number; reason: string; created_at: string; }
 
 const PACKS = [
   { credits: 50, price: "USD 9", popular: false },
@@ -22,15 +19,19 @@ const PACKS = [
 ];
 
 function CreditsPage() {
-  const { user } = useAuth();
   const { balance, unlimited } = useCredits();
-  const [tx, setTx] = useState<Tx[]>([]);
+  const [tx, setTx] = useState<LocalTx[]>([]);
 
   useEffect(() => {
-    if (!user) return;
-    supabase.from("credit_transactions").select("id,amount,reason,created_at").order("created_at", { ascending: false }).limit(30)
-      .then(({ data }) => setTx(data || []));
-  }, [user]);
+    const load = () => setTx(localStore.listTransactions().slice(0, 50));
+    load();
+    return subscribeStore(load);
+  }, []);
+
+  const addDemo = (n: number) => {
+    localStore.addCredits(n, `Recarga demo +${n}`);
+    toast.success(`+${n} créditos añadidos (demo)`);
+  };
 
   return (
     <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-8">
@@ -43,6 +44,13 @@ function CreditsPage() {
         <CreditCard className="mx-auto h-8 w-8 text-primary" />
         <div className="mt-3 text-5xl font-bold text-gradient">{unlimited ? "∞" : balance}</div>
         <p className="text-muted-foreground mt-1">{unlimited ? "Créditos ilimitados activos" : "Créditos disponibles"}</p>
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => addDemo(10)}><Plus className="h-3.5 w-3.5 mr-1" />+10 demo</Button>
+          <Button size="sm" variant="outline" onClick={() => addDemo(50)}><Plus className="h-3.5 w-3.5 mr-1" />+50 demo</Button>
+          <Button size="sm" variant="outline" onClick={() => { localStore.setUnlimited(!unlimited); toast.success(unlimited ? "Modo limitado" : "Modo ilimitado"); }}>
+            {unlimited ? "Desactivar ilimitado" : "Activar ilimitado"}
+          </Button>
+        </div>
       </div>
 
       <section>

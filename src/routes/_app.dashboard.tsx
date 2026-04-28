@@ -1,33 +1,30 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { useCredits } from "@/hooks/useCredits";
 import { Button } from "@/components/ui/button";
 import { Sparkles, FolderKanban, CreditCard, Zap } from "lucide-react";
+import { localStore, subscribeStore, type LocalProject } from "@/lib/local-store";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Nexa One" }] }),
   component: Dashboard,
 });
 
-interface Project { id: string; name: string; description: string | null; updated_at: string; }
-
 function Dashboard() {
-  const { user } = useAuth();
   const { balance, unlimited } = useCredits();
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<LocalProject[]>([]);
   const [genCount, setGenCount] = useState(0);
 
   useEffect(() => {
-    if (!user) return;
-    supabase.from("projects").select("id,name,description,updated_at").order("updated_at", { ascending: false }).limit(6)
-      .then(({ data }) => setProjects(data || []));
-    supabase.from("generations").select("id", { count: "exact", head: true })
-      .then(({ count }) => setGenCount(count || 0));
-  }, [user]);
+    const refresh = () => {
+      setProjects(localStore.listProjects().slice(0, 6));
+      setGenCount(localStore.listGenerations().length);
+    };
+    refresh();
+    return subscribeStore(refresh);
+  }, []);
 
-  const name = (user?.user_metadata as any)?.display_name || user?.email?.split("@")[0];
+  const name = "Creador";
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8">
