@@ -236,6 +236,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_credits: {
+        Args: { _amount: number; _reason: string; _target_user: string }
+        Returns: boolean
+      }
       consume_credits: {
         Args: { _amount: number; _reason: string }
         Returns: boolean
