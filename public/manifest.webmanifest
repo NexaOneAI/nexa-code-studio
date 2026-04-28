@@ -6,5 +6,8 @@
   "display": "standalone",
   "background_color": "#0b0b1a",
   "theme_color": "#0b0b1a",
-  "icons": []
+  "icons": [
+    { "src": "/nexa-logo.jpeg", "sizes": "512x512", "type": "image/jpeg", "purpose": "any" },
+    { "src": "/nexa-logo.jpeg", "sizes": "192x192", "type": "image/jpeg", "purpose": "any" }
+  ]
 }
