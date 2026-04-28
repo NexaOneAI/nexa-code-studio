@@ -1,36 +1,32 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Trash2, Sparkles, FolderKanban } from "lucide-react";
 import { toast } from "sonner";
+import { localStore, subscribeStore, type LocalProject } from "@/lib/local-store";
 
 export const Route = createFileRoute("/_app/projects")({
   head: () => ({ meta: [{ title: "Proyectos — Nexa One" }] }),
   component: ProjectsPage,
 });
 
-interface P { id: string; name: string; description: string | null; updated_at: string; }
-
 function ProjectsPage() {
-  const { user } = useAuth();
-  const [items, setItems] = useState<P[]>([]);
+  const [items, setItems] = useState<LocalProject[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
-    const { data } = await supabase.from("projects").select("id,name,description,updated_at").order("updated_at", { ascending: false });
-    setItems(data || []);
-    setLoading(false);
-  };
-  useEffect(() => { if (user) load(); }, [user]);
-
-  const remove = async (id: string) => {
-    if (!confirm("¿Eliminar este proyecto?")) return;
-    const { error } = await supabase.from("projects").delete().eq("id", id);
-    if (error) { toast.error("Error al eliminar"); return; }
-    toast.success("Proyecto eliminado");
+  useEffect(() => {
+    const load = () => {
+      setItems(localStore.listProjects());
+      setLoading(false);
+    };
     load();
+    return subscribeStore(load);
+  }, []);
+
+  const remove = (id: string) => {
+    if (!confirm("¿Eliminar este proyecto?")) return;
+    localStore.deleteProject(id);
+    toast.success("Proyecto eliminado");
   };
 
   return (
