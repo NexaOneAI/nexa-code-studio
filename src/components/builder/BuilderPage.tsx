@@ -1,9 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { generateApp } from "@/server/generateApp.functions";
-import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { useCredits } from "@/hooks/useCredits";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +14,8 @@ import { exportProjectZip } from "@/lib/exportZip";
 import { Sparkles, Wand2, Bug, Smartphone, Zap, Rocket, Download, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { CREDIT_COSTS, CreditAction } from "@/lib/credit-costs";
+import { localStore } from "@/lib/local-store";
+import { generateLocal } from "@/lib/local-generator";
 
 interface Msg { role: "user" | "ai"; content: string; }
 
@@ -30,10 +28,8 @@ const SUGGESTIONS = [
 ];
 
 export function BuilderPage({ projectId }: { projectId?: string } = {}) {
-  const { user } = useAuth();
-  const { consume, balance, unlimited } = useCredits();
+  const { consume } = useCredits();
   const nav = useNavigate();
-  const generate = useServerFn(generateApp);
 
   const [name, setName] = useState("Mi proyecto");
   const [prompt, setPrompt] = useState("");
@@ -43,46 +39,43 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   const [currentProjectId, setCurrentProjectId] = useState<string | undefined>(projectId);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Load existing project
+  // Cargar proyecto existente desde el store local
   useEffect(() => {
-    if (!projectId || !user) return;
-    (async () => {
-      const { data: proj } = await supabase.from("projects").select("*").eq("id", projectId).maybeSingle();
-      if (proj) { setName(proj.name); setCurrentProjectId(proj.id); }
-      const { data: pf } = await supabase.from("project_files").select("path,content,language").eq("project_id", projectId);
-      if (pf) setFiles(pf as FileItem[]);
-    })();
-  }, [projectId, user]);
+    if (!projectId) return;
+    const proj = localStore.getProject(projectId);
+    if (proj) {
+      setName(proj.name);
+      setFiles(proj.files);
+      setCurrentProjectId(proj.id);
+    }
+  }, [projectId]);
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const html = files.find((f) => f.path === "index.html")?.content || "";
 
-  const persistProject = async (n: string, fs: FileItem[], p: string) => {
-    if (!user) return null;
-    let pid = currentProjectId;
-    if (!pid) {
-      const { data, error } = await supabase.from("projects").insert({ user_id: user.id, name: n, prompt: p }).select().single();
-      if (error || !data) { toast.error("Error guardando proyecto"); return null; }
-      pid = data.id;
-      setCurrentProjectId(pid);
-    } else {
-      await supabase.from("projects").update({ name: n, updated_at: new Date().toISOString() }).eq("id", pid);
-    }
-    await supabase.from("project_files").delete().eq("project_id", pid!);
-    if (fs.length) {
-      await supabase.from("project_files").insert(fs.map((f) => ({
-        project_id: pid!, user_id: user.id, path: f.path, content: f.content, language: f.language || "html",
-      })));
-    }
-    return pid;
+  const persistProject = (n: string, fs: FileItem[], p: string, description?: string) => {
+    const proj = localStore.saveProject({
+      id: currentProjectId,
+      name: n,
+      description: description ?? null,
+      prompt: p,
+      files: fs,
+    });
+    if (!currentProjectId) setCurrentProjectId(proj.id);
+    return proj.id;
   };
 
-  const runAction = async (mode: "generate" | "improve" | "fix" | "mobile" | "optimize" | "netlify", action: CreditAction, userPrompt?: string) => {
+  const runAction = async (
+    mode: "generate" | "improve" | "fix" | "mobile" | "optimize" | "netlify",
+    action: CreditAction,
+    userPrompt?: string,
+  ) => {
     const finalPrompt = userPrompt ?? prompt;
-    if (!finalPrompt.trim() && mode === "generate") { toast.error("Escribe qué quieres construir"); return; }
-    if (!unlimited && balance < CREDIT_COSTS[action]) {
-      toast.error("Sin créditos suficientes", { description: `Necesitas ${CREDIT_COSTS[action]} créditos` });
+    if (!finalPrompt.trim() && mode === "generate") {
+      toast.error("Escribe qué quieres construir");
       return;
     }
 
@@ -91,34 +84,57 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
 
     try {
       const ok = await consume(action);
-      if (!ok) { setLoading(false); return; }
-
-      const context = files.length ? files.map((f) => `// ${f.path}\n${f.content}`).join("\n\n").slice(0, 15000) : undefined;
-      const result = await generate({ data: { prompt: finalPrompt || mode, context, mode } });
-
-      if (!result.ok) {
-        toast.error("Error de IA", { description: result.error });
-        setMessages((m) => [...m, { role: "ai", content: `❌ ${result.error}` }]);
+      if (!ok) {
         setLoading(false);
         return;
       }
 
-      const newFiles: FileItem[] = result.files.map((f: any) => ({ path: f.path, content: f.content, language: f.language }));
+      // Pequeña espera artificial para feedback visual.
+      await new Promise((r) => setTimeout(r, 350));
+
+      const currentHtml = files.find((f) => f.path === "index.html")?.content;
+      const result = generateLocal(finalPrompt || mode, mode, currentHtml);
+
+      // Para acciones distintas a "generate" preservamos los archivos existentes y
+      // sólo sustituimos los modificados.
+      let newFiles: FileItem[];
+      if (mode === "generate") {
+        newFiles = result.files;
+        setName(result.name);
+      } else {
+        const map = new Map(files.map((f) => [f.path, f]));
+        for (const nf of result.files) map.set(nf.path, nf);
+        newFiles = Array.from(map.values());
+      }
       setFiles(newFiles);
-      if (mode === "generate" && result.name) setName(result.name);
 
-      setMessages((m) => [...m, {
-        role: "ai",
-        content: `✅ ${result.description || "Listo"}\n\n${result.suggestions?.length ? "**Sugerencias:**\n" + result.suggestions.map((s: string) => `• ${s}`).join("\n") : ""}`,
-      }]);
+      setMessages((m) => [
+        ...m,
+        {
+          role: "ai",
+          content: `✅ ${result.description}${
+            result.suggestions.length
+              ? "\n\n**Sugerencias:**\n" + result.suggestions.map((s) => `• ${s}`).join("\n")
+              : ""
+          }`,
+        },
+      ]);
 
-      const pid = await persistProject(mode === "generate" ? result.name : name, newFiles, finalPrompt);
-      if (user && pid) {
-        await supabase.from("generations").insert({
-          user_id: user.id, project_id: pid, prompt: finalPrompt, response_summary: result.description,
-          cost: CREDIT_COSTS[action], model: result.model,
-        });
-        if (!projectId && mode === "generate") nav({ to: "/builder/$projectId", params: { projectId: pid } });
+      const pid = persistProject(
+        mode === "generate" ? result.name : name,
+        newFiles,
+        finalPrompt,
+        result.description,
+      );
+      localStore.recordGeneration({
+        project_id: pid,
+        prompt: finalPrompt,
+        response_summary: result.description,
+        cost: CREDIT_COSTS[action],
+        model: result.model,
+      });
+      if (!projectId && mode === "generate") {
+        nav({ to: "/builder/$projectId", params: { projectId: pid } });
       }
       setPrompt("");
       toast.success("Generación completada");
@@ -130,16 +146,20 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   };
 
   const handleFileChange = (path: string, content: string) => {
-    setFiles((fs) => fs.map((f) => f.path === path ? { ...f, content } : f));
+    setFiles((fs) => fs.map((f) => (f.path === path ? { ...f, content } : f)));
   };
 
-  const handleSave = async () => {
-    await persistProject(name, files, "");
+  const handleSave = () => {
+    if (files.length === 0) return;
+    persistProject(name, files, prompt);
     toast.success("Cambios guardados");
   };
 
   const handleExport = async () => {
-    if (files.length === 0) { toast.error("Genera una app primero"); return; }
+    if (files.length === 0) {
+      toast.error("Genera una app primero");
+      return;
+    }
     const ok = await consume("export_zip");
     if (!ok) return;
     await exportProjectZip(name, files);
