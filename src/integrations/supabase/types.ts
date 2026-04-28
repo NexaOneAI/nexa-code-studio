@@ -73,6 +73,8 @@ export type Database = {
           model: string | null
           project_id: string | null
           prompt: string
+          provider: string | null
+          response_full: string | null
           response_summary: string | null
           user_id: string
         }
@@ -83,6 +85,8 @@ export type Database = {
           model?: string | null
           project_id?: string | null
           prompt: string
+          provider?: string | null
+          response_full?: string | null
           response_summary?: string | null
           user_id: string
         }
@@ -93,6 +97,8 @@ export type Database = {
           model?: string | null
           project_id?: string | null
           prompt?: string
+          provider?: string | null
+          response_full?: string | null
           response_summary?: string | null
           user_id?: string
         }
