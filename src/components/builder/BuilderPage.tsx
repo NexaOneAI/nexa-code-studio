@@ -17,10 +17,20 @@ import { CREDIT_COSTS, CREDIT_LABELS, CreditAction } from "@/lib/credit-costs";
 import { localStore } from "@/lib/local-store";
 import { projectsService } from "@/services/projects.service";
 import { generateLocal } from "@/lib/local-generator";
-import { generateApp } from "@/server/generateApp.functions";
+import { generateWithProvider } from "@/server/generateWithProvider.functions";
 import { creditsService } from "@/services/credits.service";
+import {
+  AI_PROVIDERS,
+  PROVIDER_LIST,
+  type AIProvider,
+  getDefaultProvider,
+  setDefaultProvider,
+  getModel,
+} from "@/lib/ai-providers";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
-interface Msg { role: "user" | "ai"; content: string; }
+interface Msg { role: "user" | "ai"; content: string; provider?: AIProvider; model?: string; }
 
 /**
  * Valida que el resultado de la IA sea un set de archivos utilizable.
@@ -69,7 +79,15 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   const [loading, setLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState<string>("");
   const [currentProjectId, setCurrentProjectId] = useState<string | undefined>(projectId);
+  const [provider, setProvider] = useState<AIProvider>(() => getDefaultProvider());
+  const [model, setModel] = useState<string>(() => AI_PROVIDERS[getDefaultProvider()].defaultModel);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const handleProviderChange = (p: AIProvider) => {
+    setProvider(p);
+    setModel(AI_PROVIDERS[p].defaultModel);
+    setDefaultProvider(p);
+  };
 
   // Cargar proyecto existente vía service (Supabase si hay sesión, si no local)
   useEffect(() => {
@@ -140,9 +158,11 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
 
       if (useRemote) {
         setLoadingStage("Generando código con IA…");
-        // Servidor: descuenta créditos vía RPC + llama a OpenAI + registra generación.
-        const resp = await generateApp({
+        // Servidor: créditos + proveedor seleccionado + registro.
+        const resp = await generateWithProvider({
           data: {
+            provider,
+            model: getModel(provider, model),
             prompt: finalPrompt || `Acción: ${mode}`,
             mode,
             context: currentHtml,
