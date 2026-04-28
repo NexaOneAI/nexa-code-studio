@@ -19,7 +19,8 @@ export const Route = createFileRoute("/_app/credits")({
 
 function CreditsPage() {
   const { balance, unlimited, refresh } = useCredits();
-  const isAdmin = useIsAdmin();
+  const adminState = useIsAdmin();
+  const isAdmin = typeof adminState === "boolean" ? adminState : adminState.isAdmin;
   const [tx, setTx] = useState<Array<{ id: string; amount: number; reason: string; created_at: string }>>([]);
   const [isLocal, setIsLocal] = useState(true);
   const [buyingPlan, setBuyingPlan] = useState<CreditPlanId | null>(null);
