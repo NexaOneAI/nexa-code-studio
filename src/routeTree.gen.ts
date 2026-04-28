@@ -15,6 +15,8 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
+import { Route as AppBuilderRouteImport } from './routes/_app.builder'
+import { Route as AppBuilderProjectIdRouteImport } from './routes/_app.builder.$projectId'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
@@ -45,20 +47,34 @@ const AppDashboardRoute = AppDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AppRoute,
 } as any)
+const AppBuilderRoute = AppBuilderRouteImport.update({
+  id: '/builder',
+  path: '/builder',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBuilderProjectIdRoute = AppBuilderProjectIdRouteImport.update({
+  id: '/$projectId',
+  path: '/$projectId',
+  getParentRoute: () => AppBuilderRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/builder': typeof AppBuilderRouteWithChildren
   '/dashboard': typeof AppDashboardRoute
+  '/builder/$projectId': typeof AppBuilderProjectIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/builder': typeof AppBuilderRouteWithChildren
   '/dashboard': typeof AppDashboardRoute
+  '/builder/$projectId': typeof AppBuilderProjectIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -67,13 +83,29 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/_app/builder': typeof AppBuilderRouteWithChildren
   '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/builder/$projectId': typeof AppBuilderProjectIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/register' | '/reset-password' | '/dashboard'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/register'
+    | '/reset-password'
+    | '/builder'
+    | '/dashboard'
+    | '/builder/$projectId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/register' | '/reset-password' | '/dashboard'
+  to:
+    | '/'
+    | '/login'
+    | '/register'
+    | '/reset-password'
+    | '/builder'
+    | '/dashboard'
+    | '/builder/$projectId'
   id:
     | '__root__'
     | '/'
@@ -81,7 +113,9 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/_app/builder'
     | '/_app/dashboard'
+    | '/_app/builder/$projectId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -136,14 +170,42 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/builder': {
+      id: '/_app/builder'
+      path: '/builder'
+      fullPath: '/builder'
+      preLoaderRoute: typeof AppBuilderRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/builder/$projectId': {
+      id: '/_app/builder/$projectId'
+      path: '/$projectId'
+      fullPath: '/builder/$projectId'
+      preLoaderRoute: typeof AppBuilderProjectIdRouteImport
+      parentRoute: typeof AppBuilderRoute
+    }
   }
 }
 
+interface AppBuilderRouteChildren {
+  AppBuilderProjectIdRoute: typeof AppBuilderProjectIdRoute
+}
+
+const AppBuilderRouteChildren: AppBuilderRouteChildren = {
+  AppBuilderProjectIdRoute: AppBuilderProjectIdRoute,
+}
+
+const AppBuilderRouteWithChildren = AppBuilderRoute._addFileChildren(
+  AppBuilderRouteChildren,
+)
+
 interface AppRouteChildren {
+  AppBuilderRoute: typeof AppBuilderRouteWithChildren
   AppDashboardRoute: typeof AppDashboardRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppBuilderRoute: AppBuilderRouteWithChildren,
   AppDashboardRoute: AppDashboardRoute,
 }
 
@@ -159,3 +221,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
