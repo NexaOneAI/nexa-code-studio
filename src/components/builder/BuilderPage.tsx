@@ -13,15 +13,42 @@ import { CodeEditor, FileItem } from "./CodeEditor";
 import { exportProjectZip } from "@/lib/exportZip";
 import { Sparkles, Wand2, Bug, Smartphone, Zap, Rocket, Download, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
-import { CREDIT_COSTS, CreditAction } from "@/lib/credit-costs";
+import { CREDIT_COSTS, CREDIT_LABELS, CreditAction } from "@/lib/credit-costs";
 import { localStore } from "@/lib/local-store";
 import { projectsService } from "@/services/projects.service";
 import { generateLocal } from "@/lib/local-generator";
 import { generateApp } from "@/server/generateApp.functions";
 import { creditsService } from "@/services/credits.service";
-import { CREDIT_LABELS } from "@/lib/credit-costs";
 
 interface Msg { role: "user" | "ai"; content: string; }
+
+/**
+ * Valida que el resultado de la IA sea un set de archivos utilizable.
+ * Lanza Error con mensaje claro si algo está roto.
+ */
+function validateGeneratedFiles(files: any[]): FileItem[] {
+  if (!Array.isArray(files) || files.length === 0) {
+    throw new Error("La IA no devolvió archivos.");
+  }
+  const valid: FileItem[] = [];
+  for (const f of files) {
+    if (!f || typeof f.path !== "string" || typeof f.content !== "string") continue;
+    if (f.content.length === 0) continue;
+    valid.push({
+      path: f.path,
+      content: f.content,
+      language: typeof f.language === "string" ? f.language : "html",
+    });
+  }
+  if (valid.length === 0) throw new Error("Todos los archivos generados estaban vacíos o malformados.");
+  const html = valid.find((f) => f.path === "index.html");
+  if (!html) throw new Error("Falta el archivo index.html en la generación.");
+  // Sanity check mínimo: que contenga contenido HTML.
+  if (!/<html|<body|<div|<main|<section/i.test(html.content)) {
+    throw new Error("El index.html generado no contiene HTML válido.");
+  }
+  return valid;
+}
 
 const SUGGESTIONS = [
   "Una landing page de SaaS para una app de productividad",
@@ -40,6 +67,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingStage, setLoadingStage] = useState<string>("");
   const [currentProjectId, setCurrentProjectId] = useState<string | undefined>(projectId);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -95,6 +123,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
     }
 
     setLoading(true);
+    setLoadingStage(mode === "generate" ? "Pensando la arquitectura…" : "Aplicando cambios…");
     setMessages((m) => [...m, { role: "user", content: finalPrompt || `Acción: ${mode}` }]);
 
     try {
@@ -110,6 +139,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       };
 
       if (useRemote) {
+        setLoadingStage("Generando código con IA…");
         // Servidor: descuenta créditos vía RPC + llama a OpenAI + registra generación.
         const resp = await generateApp({
           data: {
@@ -122,15 +152,19 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
           },
         });
         if (!resp.ok) {
-          toast.error("Generación falló", { description: resp.error });
+          const isCredits = (resp as any).code === "INSUFFICIENT_CREDITS";
+          const desc = isCredits ? "Recarga créditos para continuar." : resp.error;
+          toast.error(isCredits ? "Créditos insuficientes" : "Generación falló", { description: desc });
           setMessages((m) => [...m, { role: "ai", content: `❌ ${resp.error}` }]);
           await refresh();
           return;
         }
+        // Validar archivos antes de mostrar.
+        const validFiles = validateGeneratedFiles(resp.files as any);
         result = {
           name: resp.name,
           description: resp.description,
-          files: resp.files as FileItem[],
+          files: validFiles,
           suggestions: resp.suggestions,
           model: resp.model,
         };
@@ -139,8 +173,10 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         // Modo local: descuenta vía store local + generador de plantillas.
         const ok = await consume(action);
         if (!ok) return;
+        setLoadingStage("Construyendo plantilla…");
         await new Promise((r) => setTimeout(r, 250));
-        result = generateLocal(finalPrompt || mode, mode, currentHtml);
+        const local = generateLocal(finalPrompt || mode, mode, currentHtml);
+        result = { ...local, files: validateGeneratedFiles(local.files) };
         localStore.recordGeneration({
           project_id: currentProjectId ?? "local",
           prompt: finalPrompt,
@@ -149,6 +185,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
           model: result.model,
         });
       }
+
+      setLoadingStage("Actualizando vista previa…");
 
       // Para acciones distintas a "generate" preservamos los archivos existentes y
       // sólo sustituimos los modificados.
@@ -187,10 +225,12 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       setPrompt("");
       toast.success("Generación completada");
     } catch (e: any) {
-      toast.error("Error", { description: e?.message || "Falló la generación" });
-      setMessages((m) => [...m, { role: "ai", content: `❌ ${e?.message || "Error desconocido"}` }]);
+      const msg = e?.message || "Falló la generación";
+      toast.error("Error en la generación", { description: msg });
+      setMessages((m) => [...m, { role: "ai", content: `❌ ${msg}` }]);
     } finally {
       setLoading(false);
+      setLoadingStage("");
     }
   };
 
@@ -264,7 +304,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
               ))}
               {loading && (
                 <div className="rounded-lg bg-background/50 border border-border p-3 text-sm flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Nexa está construyendo...
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>{loadingStage || "Nexa está construyendo…"}</span>
                 </div>
               )}
               <div ref={chatEndRef} />

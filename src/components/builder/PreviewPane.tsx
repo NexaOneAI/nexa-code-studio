@@ -9,12 +9,44 @@ const SIZES = {
 } as const;
 type Mode = keyof typeof SIZES;
 
+const EMPTY_DOC = `<!doctype html><html><head><meta charset="utf-8"><style>
+  html,body{height:100%;margin:0;background:#ffffff;color:#475569;font-family:ui-sans-serif,system-ui,sans-serif}
+  .wrap{height:100%;display:flex;align-items:center;justify-content:center;text-align:center;padding:2rem}
+  .card{max-width:380px}
+  h1{font-size:1.1rem;margin:0 0 .5rem;color:#0f172a}
+  p{margin:0;font-size:.875rem;color:#64748b}
+</style></head><body><div class="wrap"><div class="card"><h1>Vista previa</h1><p>Genera una app desde el chat para verla aquí en tiempo real.</p></div></div></body></html>`;
+
+/**
+ * Asegura un documento HTML válido y renderizable.
+ * Si la IA devuelve sólo un fragmento, lo envolvemos en un <html> mínimo con fondo claro
+ * para evitar pantallas negras o iframes vacíos.
+ */
+function normalizeHtml(raw: string): string {
+  const html = (raw || "").trim();
+  if (!html) return EMPTY_DOC;
+
+  const hasDoctype = /^<!doctype/i.test(html);
+  const hasHtml = /<html[\s>]/i.test(html);
+  const hasBody = /<body[\s>]/i.test(html);
+
+  if (hasDoctype && hasHtml && hasBody) return html;
+
+  // Fragmento → envolver. Garantiza CSS base y fondo claro.
+  const wrapped = `<!doctype html><html lang="es"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>html,body{margin:0;background:#ffffff;color:#0f172a;font-family:ui-sans-serif,system-ui,sans-serif;min-height:100vh}</style>
+</head><body>${html}</body></html>`;
+  return wrapped;
+}
+
 export function PreviewPane({ html }: { html: string }) {
   const [mode, setMode] = useState<Mode>("desktop");
   const [key, setKey] = useState(0);
   const ref = useRef<HTMLIFrameElement>(null);
 
-  const srcDoc = useMemo(() => html || "<html><body style='background:#0b0b1a;color:#888;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0'><div>Vista previa aparecerá aquí</div></body></html>", [html]);
+  const srcDoc = useMemo(() => normalizeHtml(html), [html]);
 
   return (
     <div className="flex flex-col h-full">
