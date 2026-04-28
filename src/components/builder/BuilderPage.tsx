@@ -16,8 +16,10 @@ import { toast } from "sonner";
 import { CREDIT_COSTS, CreditAction } from "@/lib/credit-costs";
 import { localStore } from "@/lib/local-store";
 import { projectsService } from "@/services/projects.service";
-import { supabaseClient } from "@/integrations/supabase/client";
 import { generateLocal } from "@/lib/local-generator";
+import { generateApp } from "@/server/generateApp.functions";
+import { creditsService } from "@/services/credits.service";
+import { CREDIT_LABELS } from "@/lib/credit-costs";
 
 interface Msg { role: "user" | "ai"; content: string; }
 
@@ -30,7 +32,7 @@ const SUGGESTIONS = [
 ];
 
 export function BuilderPage({ projectId }: { projectId?: string } = {}) {
-  const { consume } = useCredits();
+  const { consume, balance, unlimited, refresh } = useCredits();
   const nav = useNavigate();
 
   const [name, setName] = useState("Mi proyecto");
@@ -83,21 +85,70 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       return;
     }
 
+    const cost = CREDIT_COSTS[action];
+    // Bloqueo client-side: si no hay créditos y no es ilimitado, no llamar a la IA.
+    if (!unlimited && balance < cost) {
+      toast.error("Créditos insuficientes", {
+        description: `Necesitas ${cost} créditos para "${CREDIT_LABELS[action]}". Tienes ${balance}.`,
+      });
+      return;
+    }
+
     setLoading(true);
     setMessages((m) => [...m, { role: "user", content: finalPrompt || `Acción: ${mode}` }]);
 
     try {
-      const ok = await consume(action);
-      if (!ok) {
-        setLoading(false);
-        return;
-      }
-
-      // Pequeña espera artificial para feedback visual.
-      await new Promise((r) => setTimeout(r, 350));
-
+      const useRemote = await creditsService.isLocal().then((local) => !local);
       const currentHtml = files.find((f) => f.path === "index.html")?.content;
-      const result = generateLocal(finalPrompt || mode, mode, currentHtml);
+
+      let result: {
+        name: string;
+        description: string;
+        files: FileItem[];
+        suggestions: string[];
+        model: string;
+      };
+
+      if (useRemote) {
+        // Servidor: descuenta créditos vía RPC + llama a OpenAI + registra generación.
+        const resp = await generateApp({
+          data: {
+            prompt: finalPrompt || `Acción: ${mode}`,
+            mode,
+            context: currentHtml,
+            projectId: currentProjectId,
+            cost,
+            reason: CREDIT_LABELS[action],
+          },
+        });
+        if (!resp.ok) {
+          toast.error("Generación falló", { description: resp.error });
+          setMessages((m) => [...m, { role: "ai", content: `❌ ${resp.error}` }]);
+          await refresh();
+          return;
+        }
+        result = {
+          name: resp.name,
+          description: resp.description,
+          files: resp.files as FileItem[],
+          suggestions: resp.suggestions,
+          model: resp.model,
+        };
+        await refresh();
+      } else {
+        // Modo local: descuenta vía store local + generador de plantillas.
+        const ok = await consume(action);
+        if (!ok) return;
+        await new Promise((r) => setTimeout(r, 250));
+        result = generateLocal(finalPrompt || mode, mode, currentHtml);
+        localStore.recordGeneration({
+          project_id: currentProjectId ?? "local",
+          prompt: finalPrompt,
+          response_summary: result.description,
+          cost,
+          model: result.model,
+        });
+      }
 
       // Para acciones distintas a "generate" preservamos los archivos existentes y
       // sólo sustituimos los modificados.
@@ -130,27 +181,6 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         finalPrompt,
         result.description,
       );
-      // Registrar la generación: en Supabase si hay sesión, si no en el espejo local.
-      if (supabaseClient) {
-        const { data: sess } = await supabaseClient.auth.getSession();
-        if (sess.session) {
-          await supabaseClient.from("generations").insert({
-            user_id: sess.session.user.id,
-            project_id: pid,
-            prompt: finalPrompt,
-            response_summary: result.description,
-            cost: CREDIT_COSTS[action],
-            model: result.model,
-          });
-        }
-      }
-      localStore.recordGeneration({
-        project_id: pid,
-        prompt: finalPrompt,
-        response_summary: result.description,
-        cost: CREDIT_COSTS[action],
-        model: result.model,
-      });
       if (!projectId && mode === "generate") {
         nav({ to: "/builder/$projectId", params: { projectId: pid } });
       }
@@ -158,6 +188,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       toast.success("Generación completada");
     } catch (e: any) {
       toast.error("Error", { description: e?.message || "Falló la generación" });
+      setMessages((m) => [...m, { role: "ai", content: `❌ ${e?.message || "Error desconocido"}` }]);
     } finally {
       setLoading(false);
     }
