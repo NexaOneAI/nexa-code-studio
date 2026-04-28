@@ -8,7 +8,7 @@ import { useCredits } from "@/hooks/useCredits";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 import { PreviewPane } from "./PreviewPane";
 import { CodeEditor, FileItem } from "./CodeEditor";
 import { exportProjectZip } from "@/lib/exportZip";
@@ -160,9 +160,9 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         </div>
       </div>
 
-      <ResizablePanelGroup direction="horizontal" className="flex-1">
+      <PanelGroup direction="horizontal" className="flex-1 flex">
         {/* Chat */}
-        <ResizablePanel defaultSize={28} minSize={20}>
+        <Panel defaultSize={28} minSize={20}>
           <div className="flex flex-col h-full bg-card/20">
             <div className="border-b border-border p-3 flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
@@ -203,18 +203,18 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
               </Button>
             </div>
           </div>
-        </ResizablePanel>
-        <ResizableHandle withHandle />
+        </Panel>
+        <PanelResizeHandle className="w-px bg-border hover:bg-primary/50 transition" />
         {/* Preview */}
-        <ResizablePanel defaultSize={40} minSize={25}>
+        <Panel defaultSize={40} minSize={25}>
           <PreviewPane html={html} />
-        </ResizablePanel>
-        <ResizableHandle withHandle />
+        </Panel>
+        <PanelResizeHandle className="w-px bg-border hover:bg-primary/50 transition" />
         {/* Editor */}
-        <ResizablePanel defaultSize={32} minSize={20}>
+        <Panel defaultSize={32} minSize={20}>
           <CodeEditor files={files} onChange={handleFileChange} onSave={handleSave} />
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        </Panel>
+      </PanelGroup>
     </div>
   );
 }
