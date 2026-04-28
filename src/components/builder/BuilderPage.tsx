@@ -305,7 +305,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
               ))}
               {loading && (
                 <div className="rounded-lg bg-background/50 border border-border p-3 text-sm flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Nexa está construyendo...
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>{loadingStage || "Nexa está construyendo…"}</span>
                 </div>
               )}
               <div ref={chatEndRef} />
