@@ -16,7 +16,6 @@ import { toast } from "sonner";
 import { CREDIT_COSTS, CreditAction } from "@/lib/credit-costs";
 import { localStore } from "@/lib/local-store";
 import { projectsService } from "@/services/projects.service";
-import { supabaseClient } from "@/integrations/supabase/client";
 import { generateLocal } from "@/lib/local-generator";
 import { generateApp } from "@/server/generateApp.functions";
 import { creditsService } from "@/services/credits.service";
