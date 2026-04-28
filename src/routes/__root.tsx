@@ -1,6 +1,9 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 function NotFoundComponent() {
   return (
@@ -29,14 +32,14 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Nexa One Builder — Crea apps web con IA" },
+      { name: "description", content: "Plataforma para construir aplicaciones web con IA, vista previa en vivo, editor y export ZIP." },
+      { name: "author", content: "Nexa One" },
+      { name: "theme-color", content: "#0b0b1a" },
+      { property: "og:title", content: "Nexa One Builder" },
+      { property: "og:description", content: "Crea apps web con IA, en vivo." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
       {
@@ -65,5 +68,12 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  return <Outlet />;
+  return (
+    <AuthProvider>
+      <TooltipProvider>
+        <Outlet />
+        <Toaster richColors position="top-right" theme="dark" />
+      </TooltipProvider>
+    </AuthProvider>
+  );
 }

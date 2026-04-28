@@ -1,0 +1,10 @@
+{
+  "name": "Nexa One Builder",
+  "short_name": "Nexa One",
+  "description": "Crea apps web con IA",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0b1a",
+  "theme_color": "#0b0b1a",
+  "icons": []
+}
