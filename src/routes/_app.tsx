@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
+import { SupabaseStatusBanner } from "@/components/SupabaseStatusBanner";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
@@ -15,8 +16,9 @@ function AppLayout() {
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-14 border-b border-border flex items-center px-4 gap-3 bg-background/80 backdrop-blur sticky top-0 z-10">
             <SidebarTrigger />
-            <div className="text-sm text-muted-foreground">Nexa One Builder · modo local</div>
+            <div className="text-sm text-muted-foreground">Nexa One Builder</div>
           </header>
+          <SupabaseStatusBanner />
           <main className="flex-1 overflow-auto">
             <Outlet />
           </main>

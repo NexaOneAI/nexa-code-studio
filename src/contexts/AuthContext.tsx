@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabaseClient } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 
 interface AuthCtx {
@@ -17,11 +17,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+    if (!supabaseClient) {
+      setLoading(false);
+      return;
+    }
+    const { data: sub } = supabaseClient.auth.onAuthStateChange((_e, s) => {
       setSession(s);
       setUser(s?.user ?? null);
     });
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+    supabaseClient.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s);
       setUser(s?.user ?? null);
       setLoading(false);
@@ -30,7 +34,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ user, session, loading, signOut: async () => { await supabase.auth.signOut(); } }}>
+    <Ctx.Provider
+      value={{
+        user,
+        session,
+        loading,
+        signOut: async () => {
+          if (supabaseClient) await supabaseClient.auth.signOut();
+        },
+      }}
+    >
       {children}
     </Ctx.Provider>
   );
