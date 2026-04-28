@@ -17,10 +17,20 @@ import { CREDIT_COSTS, CREDIT_LABELS, CreditAction } from "@/lib/credit-costs";
 import { localStore } from "@/lib/local-store";
 import { projectsService } from "@/services/projects.service";
 import { generateLocal } from "@/lib/local-generator";
-import { generateApp } from "@/server/generateApp.functions";
+import { generateWithProvider } from "@/server/generateWithProvider.functions";
 import { creditsService } from "@/services/credits.service";
+import {
+  AI_PROVIDERS,
+  PROVIDER_LIST,
+  type AIProvider,
+  getDefaultProvider,
+  setDefaultProvider,
+  getModel,
+} from "@/lib/ai-providers";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
-interface Msg { role: "user" | "ai"; content: string; }
+interface Msg { role: "user" | "ai"; content: string; provider?: AIProvider; model?: string; }
 
 /**
  * Valida que el resultado de la IA sea un set de archivos utilizable.
@@ -69,7 +79,15 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   const [loading, setLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState<string>("");
   const [currentProjectId, setCurrentProjectId] = useState<string | undefined>(projectId);
+  const [provider, setProvider] = useState<AIProvider>(() => getDefaultProvider());
+  const [model, setModel] = useState<string>(() => AI_PROVIDERS[getDefaultProvider()].defaultModel);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const handleProviderChange = (p: AIProvider) => {
+    setProvider(p);
+    setModel(AI_PROVIDERS[p].defaultModel);
+    setDefaultProvider(p);
+  };
 
   // Cargar proyecto existente vía service (Supabase si hay sesión, si no local)
   useEffect(() => {
@@ -140,9 +158,11 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
 
       if (useRemote) {
         setLoadingStage("Generando código con IA…");
-        // Servidor: descuenta créditos vía RPC + llama a OpenAI + registra generación.
-        const resp = await generateApp({
+        // Servidor: créditos + proveedor seleccionado + registro.
+        const resp = await generateWithProvider({
           data: {
+            provider,
+            model: getModel(provider, model),
             prompt: finalPrompt || `Acción: ${mode}`,
             mode,
             context: currentHtml,
@@ -264,6 +284,13 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       <div className="border-b border-border p-3 flex items-center gap-2 bg-card/30">
         <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={handleSave}
           className="max-w-xs h-8 text-sm font-medium bg-transparent border-border" />
+        <ProviderSelector
+          provider={provider}
+          model={model}
+          onProviderChange={handleProviderChange}
+          onModelChange={setModel}
+        />
+        <ProviderBadge provider={provider} model={model} />
         <div className="ml-auto flex flex-wrap gap-1.5">
           <ActBtn icon={Wand2} label="Mejorar" cost={CREDIT_COSTS.visual_change} onClick={() => runAction("improve", "visual_change", "Mejora visualmente la app")} disabled={loading || files.length === 0} />
           <ActBtn icon={Bug} label="Corregir" cost={CREDIT_COSTS.fix_errors} onClick={() => runAction("fix", "fix_errors", "Detecta y corrige errores")} disabled={loading || files.length === 0} />
@@ -298,7 +325,14 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
               )}
               {messages.map((m, i) => (
                 <div key={i} className={`rounded-lg p-3 text-sm ${m.role === "user" ? "bg-primary/10 border border-primary/20" : "bg-background/50 border border-border"}`}>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{m.role === "user" ? "Tú" : "Nexa AI"}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-2">
+                    <span>{m.role === "user" ? "Tú" : "Nexa AI"}</span>
+                    {m.role === "ai" && m.provider && (
+                      <Badge variant="outline" className="text-[9px] py-0 px-1.5 h-4 border-primary/30">
+                        {AI_PROVIDERS[m.provider].label}{m.model ? ` · ${m.model}` : ""}
+                      </Badge>
+                    )}
+                  </div>
                   <div className="whitespace-pre-wrap">{m.content}</div>
                 </div>
               ))}
@@ -314,6 +348,10 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
               <Textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Describe la app que quieres crear..."
                 rows={3} className="resize-none text-sm"
                 onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) runAction("generate", files.length ? "generation_simple" : "full_app"); }} />
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>Estimado: <span className="text-foreground font-medium">{files.length ? CREDIT_COSTS.generation_simple : CREDIT_COSTS.full_app} créditos</span></span>
+                <span>Saldo: <span className={`font-medium ${!unlimited && balance < 5 ? "text-amber-400" : "text-foreground"}`}>{unlimited ? "∞" : balance}</span></span>
+              </div>
               <Button onClick={() => runAction("generate", files.length ? "generation_simple" : "full_app")}
                 disabled={loading || !prompt.trim()} className="w-full bg-gradient-primary border-0">
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="h-4 w-4 mr-2" /> Generar ({files.length ? CREDIT_COSTS.generation_simple : CREDIT_COSTS.full_app}c)</>}
@@ -342,5 +380,55 @@ function ActBtn({ icon: Icon, label, cost, onClick, disabled }: { icon: any; lab
       <Icon className="h-3.5 w-3.5 mr-1" /> {label}
       <span className="ml-1 text-[10px] opacity-60">{cost}c</span>
     </Button>
+  );
+}
+
+function ProviderSelector({
+  provider,
+  model,
+  onProviderChange,
+  onModelChange,
+}: {
+  provider: AIProvider;
+  model: string;
+  onProviderChange: (p: AIProvider) => void;
+  onModelChange: (m: string) => void;
+}) {
+  const info = AI_PROVIDERS[provider];
+  return (
+    <div className="flex items-center gap-1.5">
+      <Select value={provider} onValueChange={(v) => onProviderChange(v as AIProvider)}>
+        <SelectTrigger className="h-8 w-[110px] text-xs bg-background/40 border-border">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {PROVIDER_LIST.map((p) => (
+            <SelectItem key={p.id} value={p.id} className="text-xs">{p.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={model} onValueChange={onModelChange}>
+        <SelectTrigger className="h-8 w-[170px] text-xs bg-background/40 border-border">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {info.models.map((m) => (
+            <SelectItem key={m.id} value={m.id} className="text-xs">{m.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+function ProviderBadge({ provider, model }: { provider: AIProvider; model: string }) {
+  const info = AI_PROVIDERS[provider];
+  return (
+    <Badge
+      variant="outline"
+      className={`text-[10px] h-6 px-2 border-primary/30 bg-gradient-to-r ${info.color} bg-clip-text text-transparent border-current`}
+    >
+      {info.label} · {model}
+    </Badge>
   );
 }
