@@ -1,34 +1,70 @@
 import { useEffect, useState, useCallback } from "react";
 import { CREDIT_COSTS, CreditAction, CREDIT_LABELS } from "@/lib/credit-costs";
 import { toast } from "sonner";
-import { localStore, subscribeStore } from "@/lib/local-store";
+import { creditsService } from "@/services/credits.service";
+import { subscribeStore } from "@/lib/local-store";
+import { supabaseClient } from "@/integrations/supabase/client";
 
 /**
- * Sistema de créditos 100% local (localStorage).
- * Backend Supabase queda preparado pero no se usa aquí para evitar romper en modo demo.
+ * Hook unificado de créditos.
+ * - Si hay sesión Supabase: balance, consumo e historial vienen del backend real,
+ *   con realtime sobre la tabla `credits`.
+ * - Si no: cae al store local automáticamente.
  */
 export function useCredits() {
-  const [balance, setBalance] = useState<number>(() => localStore.getCredits().balance);
-  const [unlimited, setUnlimited] = useState<boolean>(() => localStore.getCredits().unlimited);
+  const [balance, setBalance] = useState<number>(0);
+  const [unlimited, setUnlimited] = useState<boolean>(false);
+  const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(() => {
-    const c = localStore.getCredits();
+  const refresh = useCallback(async () => {
+    const c = await creditsService.getBalance();
     setBalance(c.balance);
     setUnlimited(c.unlimited);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
     refresh();
-    return subscribeStore(refresh);
+    // Cambios en el store local (modo local).
+    const offLocal = subscribeStore(() => { refresh(); });
+
+    // Realtime Supabase (modo remoto).
+    let cleanupRealtime: (() => void) | undefined;
+    if (supabaseClient) {
+      supabaseClient.auth.getSession().then(({ data }) => {
+        const uid = data.session?.user.id;
+        if (!uid) return;
+        const ch = supabaseClient!
+          .channel("credits-" + uid)
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "credits", filter: `user_id=eq.${uid}` },
+            () => refresh(),
+          )
+          .subscribe();
+        cleanupRealtime = () => { supabaseClient!.removeChannel(ch); };
+      });
+
+      const { data: sub } = supabaseClient.auth.onAuthStateChange(() => refresh());
+      const prev = cleanupRealtime;
+      cleanupRealtime = () => {
+        prev?.();
+        sub.subscription.unsubscribe();
+      };
+    }
+
+    return () => {
+      offLocal();
+      cleanupRealtime?.();
+    };
   }, [refresh]);
 
   const consume = useCallback(
     async (action: CreditAction): Promise<boolean> => {
-      const amount = CREDIT_COSTS[action];
-      const ok = localStore.consumeCredits(amount, CREDIT_LABELS[action]);
+      const ok = await creditsService.consume(action);
       if (!ok) {
         toast.error("Créditos insuficientes", {
-          description: `${CREDIT_LABELS[action]} cuesta ${amount} créditos.`,
+          description: `${CREDIT_LABELS[action]} cuesta ${CREDIT_COSTS[action]} créditos.`,
         });
         return false;
       }
@@ -38,5 +74,5 @@ export function useCredits() {
     [refresh],
   );
 
-  return { balance, unlimited, loading: false, consume, refresh };
+  return { balance, unlimited, loading, consume, refresh };
 }
