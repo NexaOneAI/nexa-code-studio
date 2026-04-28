@@ -13,13 +13,12 @@ import { CodeEditor, FileItem } from "./CodeEditor";
 import { exportProjectZip } from "@/lib/exportZip";
 import { Sparkles, Wand2, Bug, Smartphone, Zap, Rocket, Download, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
-import { CREDIT_COSTS, CreditAction } from "@/lib/credit-costs";
+import { CREDIT_COSTS, CREDIT_LABELS, CreditAction } from "@/lib/credit-costs";
 import { localStore } from "@/lib/local-store";
 import { projectsService } from "@/services/projects.service";
 import { generateLocal } from "@/lib/local-generator";
 import { generateApp } from "@/server/generateApp.functions";
 import { creditsService } from "@/services/credits.service";
-import { CREDIT_LABELS } from "@/lib/credit-costs";
 
 interface Msg { role: "user" | "ai"; content: string; }
 
