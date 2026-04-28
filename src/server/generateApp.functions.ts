@@ -46,7 +46,25 @@ const MODE_INSTRUCTIONS: Record<string, string> = {
 export const generateApp = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => InputSchema.parse(d))
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context as { supabase: any; userId: string };
+
+    // 1. Descontar créditos atómicamente vía RPC ANTES de llamar a OpenAI.
+    const { data: consumed, error: consumeErr } = await supabase.rpc("consume_credits", {
+      _amount: data.cost,
+      _reason: data.reason,
+    });
+    if (consumeErr) {
+      return { ok: false as const, error: `No se pudo consumir créditos: ${consumeErr.message}` };
+    }
+    if (!consumed) {
+      return {
+        ok: false as const,
+        error: "Créditos insuficientes para esta acción.",
+        code: "INSUFFICIENT_CREDITS" as const,
+      };
+    }
+
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return { ok: false as const, error: "OPENAI_API_KEY no está configurada en el servidor." };
@@ -97,6 +115,16 @@ export const generateApp = createServerFn({ method: "POST" })
       if (!parsed.files || !Array.isArray(parsed.files) || parsed.files.length === 0) {
         return { ok: false as const, error: "Estructura inválida: falta 'files'" };
       }
+
+      // 2. Registrar la generación en la tabla `generations`.
+      await supabase.from("generations").insert({
+        user_id: userId,
+        project_id: data.projectId ?? null,
+        prompt: data.prompt,
+        response_summary: parsed.description || null,
+        cost: data.cost,
+        model: "gpt-4o-mini",
+      });
 
       return {
         ok: true as const,
