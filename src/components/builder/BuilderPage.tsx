@@ -23,6 +23,34 @@ import { CREDIT_LABELS } from "@/lib/credit-costs";
 
 interface Msg { role: "user" | "ai"; content: string; }
 
+/**
+ * Valida que el resultado de la IA sea un set de archivos utilizable.
+ * Lanza Error con mensaje claro si algo está roto.
+ */
+function validateGeneratedFiles(files: any[]): FileItem[] {
+  if (!Array.isArray(files) || files.length === 0) {
+    throw new Error("La IA no devolvió archivos.");
+  }
+  const valid: FileItem[] = [];
+  for (const f of files) {
+    if (!f || typeof f.path !== "string" || typeof f.content !== "string") continue;
+    if (f.content.length === 0) continue;
+    valid.push({
+      path: f.path,
+      content: f.content,
+      language: typeof f.language === "string" ? f.language : "html",
+    });
+  }
+  if (valid.length === 0) throw new Error("Todos los archivos generados estaban vacíos o malformados.");
+  const html = valid.find((f) => f.path === "index.html");
+  if (!html) throw new Error("Falta el archivo index.html en la generación.");
+  // Sanity check mínimo: que contenga contenido HTML.
+  if (!/<html|<body|<div|<main|<section/i.test(html.content)) {
+    throw new Error("El index.html generado no contiene HTML válido.");
+  }
+  return valid;
+}
+
 const SUGGESTIONS = [
   "Una landing page de SaaS para una app de productividad",
   "Una calculadora de propinas moderna",
