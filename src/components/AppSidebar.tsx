@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Sparkles, FolderKanban, CreditCard, RotateCcw } from "lucide-react";
+import { LayoutDashboard, Sparkles, FolderKanban, CreditCard, RotateCcw, ShieldCheck } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar,
@@ -27,6 +27,9 @@ export function AppSidebar() {
   const { balance, unlimited } = useCredits();
   const { isAdmin } = useIsAdmin();
   const showUnlimited = unlimited || isAdmin;
+  const navItems = isAdmin
+    ? [...items, { title: "Admin", url: "/admin", icon: ShieldCheck }]
+    : items;
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border glass-card rounded-none">
@@ -38,7 +41,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Espacio de trabajo</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => {
+              {navItems.map((item) => {
                 const active = path === item.url || path.startsWith(item.url + "/");
                 return (
                   <SidebarMenuItem key={item.url}>
