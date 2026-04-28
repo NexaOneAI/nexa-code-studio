@@ -17,7 +17,7 @@ import { CREDIT_COSTS, CREDIT_LABELS, CreditAction } from "@/lib/credit-costs";
 import { localStore } from "@/lib/local-store";
 import { projectsService } from "@/services/projects.service";
 import { generateLocal } from "@/lib/local-generator";
-import { generateWithProvider } from "@/server/generateWithProvider.functions";
+import { generateAI } from "@/server/generateAI.functions";
 import { creditsService } from "@/services/credits.service";
 import {
   AI_PROVIDERS,
@@ -158,8 +158,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
 
       if (useRemote) {
         setLoadingStage("Generando código con IA…");
-        // Servidor: créditos + proveedor seleccionado + registro.
-        const resp = await generateWithProvider({
+        // Punto único centralizado: créditos + proveedor + fallback + registro.
+        const resp = await generateAI({
           data: {
             provider,
             model: getModel(provider, model),
@@ -175,9 +175,20 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
           const isCredits = (resp as any).code === "INSUFFICIENT_CREDITS";
           const desc = isCredits ? "Recarga créditos para continuar." : resp.error;
           toast.error(isCredits ? "Créditos insuficientes" : "Generación falló", { description: desc });
-          setMessages((m) => [...m, { role: "ai", content: `❌ ${resp.error}` }]);
+          setMessages((m) => [
+            ...m,
+            {
+              role: "ai",
+              content: `❌ ${resp.error}\n\nPuedes reintentar cambiando de proveedor en el selector superior.`,
+            },
+          ]);
           await refresh();
           return;
+        }
+        if (resp.fallbackUsed) {
+          toast.info("Fallback automático", {
+            description: `${provider} falló. Se usó ${resp.provider}/${resp.model}.`,
+          });
         }
         // Validar archivos antes de mostrar.
         const validFiles = validateGeneratedFiles(resp.files as any);
@@ -188,6 +199,20 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
           suggestions: resp.suggestions,
           model: resp.model,
         };
+        // Mensaje IA con badge del proveedor real usado (puede diferir si hubo fallback).
+        setMessages((m) => [
+          ...m,
+          {
+            role: "ai",
+            content: `✅ ${result.description}${
+              result.suggestions.length
+                ? "\n\n**Sugerencias:**\n" + result.suggestions.map((s) => `• ${s}`).join("\n")
+                : ""
+            }`,
+            provider: resp.provider as AIProvider,
+            model: resp.model,
+          },
+        ]);
         await refresh();
       } else {
         // Modo local: descuenta vía store local + generador de plantillas.
@@ -204,6 +229,17 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
           cost,
           model: result.model,
         });
+        setMessages((m) => [
+          ...m,
+          {
+            role: "ai",
+            content: `✅ ${result.description}${
+              result.suggestions.length
+                ? "\n\n**Sugerencias:**\n" + result.suggestions.map((s) => `• ${s}`).join("\n")
+                : ""
+            }`,
+          },
+        ]);
       }
 
       setLoadingStage("Actualizando vista previa…");
@@ -220,18 +256,6 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         newFiles = Array.from(map.values());
       }
       setFiles(newFiles);
-
-      setMessages((m) => [
-        ...m,
-        {
-          role: "ai",
-          content: `✅ ${result.description}${
-            result.suggestions.length
-              ? "\n\n**Sugerencias:**\n" + result.suggestions.map((s) => `• ${s}`).join("\n")
-              : ""
-          }`,
-        },
-      ]);
 
       const pid = await persistProject(
         mode === "generate" ? result.name : name,
