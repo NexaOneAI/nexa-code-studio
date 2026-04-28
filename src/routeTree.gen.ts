@@ -14,7 +14,10 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppProjectsRouteImport } from './routes/_app.projects'
+import { Route as AppProfileRouteImport } from './routes/_app.profile'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
+import { Route as AppCreditsRouteImport } from './routes/_app.credits'
 import { Route as AppBuilderRouteImport } from './routes/_app.builder'
 import { Route as AppBuilderProjectIdRouteImport } from './routes/_app.builder.$projectId'
 
@@ -42,9 +45,24 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppProjectsRoute = AppProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppProfileRoute = AppProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCreditsRoute = AppCreditsRouteImport.update({
+  id: '/credits',
+  path: '/credits',
   getParentRoute: () => AppRoute,
 } as any)
 const AppBuilderRoute = AppBuilderRouteImport.update({
@@ -64,7 +82,10 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/builder': typeof AppBuilderRouteWithChildren
+  '/credits': typeof AppCreditsRoute
   '/dashboard': typeof AppDashboardRoute
+  '/profile': typeof AppProfileRoute
+  '/projects': typeof AppProjectsRoute
   '/builder/$projectId': typeof AppBuilderProjectIdRoute
 }
 export interface FileRoutesByTo {
@@ -73,7 +94,10 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/builder': typeof AppBuilderRouteWithChildren
+  '/credits': typeof AppCreditsRoute
   '/dashboard': typeof AppDashboardRoute
+  '/profile': typeof AppProfileRoute
+  '/projects': typeof AppProjectsRoute
   '/builder/$projectId': typeof AppBuilderProjectIdRoute
 }
 export interface FileRoutesById {
@@ -84,7 +108,10 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_app/builder': typeof AppBuilderRouteWithChildren
+  '/_app/credits': typeof AppCreditsRoute
   '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/profile': typeof AppProfileRoute
+  '/_app/projects': typeof AppProjectsRoute
   '/_app/builder/$projectId': typeof AppBuilderProjectIdRoute
 }
 export interface FileRouteTypes {
@@ -95,7 +122,10 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/builder'
+    | '/credits'
     | '/dashboard'
+    | '/profile'
+    | '/projects'
     | '/builder/$projectId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -104,7 +134,10 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/builder'
+    | '/credits'
     | '/dashboard'
+    | '/profile'
+    | '/projects'
     | '/builder/$projectId'
   id:
     | '__root__'
@@ -114,7 +147,10 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/_app/builder'
+    | '/_app/credits'
     | '/_app/dashboard'
+    | '/_app/profile'
+    | '/_app/projects'
     | '/_app/builder/$projectId'
   fileRoutesById: FileRoutesById
 }
@@ -163,11 +199,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/projects': {
+      id: '/_app/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof AppProjectsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/profile': {
+      id: '/_app/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AppProfileRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/dashboard': {
       id: '/_app/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AppDashboardRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/credits': {
+      id: '/_app/credits'
+      path: '/credits'
+      fullPath: '/credits'
+      preLoaderRoute: typeof AppCreditsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/builder': {
@@ -201,12 +258,18 @@ const AppBuilderRouteWithChildren = AppBuilderRoute._addFileChildren(
 
 interface AppRouteChildren {
   AppBuilderRoute: typeof AppBuilderRouteWithChildren
+  AppCreditsRoute: typeof AppCreditsRoute
   AppDashboardRoute: typeof AppDashboardRoute
+  AppProfileRoute: typeof AppProfileRoute
+  AppProjectsRoute: typeof AppProjectsRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppBuilderRoute: AppBuilderRouteWithChildren,
+  AppCreditsRoute: AppCreditsRoute,
   AppDashboardRoute: AppDashboardRoute,
+  AppProfileRoute: AppProfileRoute,
+  AppProjectsRoute: AppProjectsRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
@@ -221,3 +284,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
