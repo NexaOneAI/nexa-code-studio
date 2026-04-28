@@ -19,6 +19,7 @@ import { Route as AppProfileRouteImport } from './routes/_app.profile'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
 import { Route as AppCreditsRouteImport } from './routes/_app.credits'
 import { Route as AppBuilderRouteImport } from './routes/_app.builder'
+import { Route as ApiPublicMercadoPagoWebhookRouteImport } from './routes/api/public/mercado-pago-webhook'
 import { Route as AppBuilderProjectIdRouteImport } from './routes/_app.builder.$projectId'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -70,6 +71,12 @@ const AppBuilderRoute = AppBuilderRouteImport.update({
   path: '/builder',
   getParentRoute: () => AppRoute,
 } as any)
+const ApiPublicMercadoPagoWebhookRoute =
+  ApiPublicMercadoPagoWebhookRouteImport.update({
+    id: '/api/public/mercado-pago-webhook',
+    path: '/api/public/mercado-pago-webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AppBuilderProjectIdRoute = AppBuilderProjectIdRouteImport.update({
   id: '/$projectId',
   path: '/$projectId',
@@ -87,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof AppProfileRoute
   '/projects': typeof AppProjectsRoute
   '/builder/$projectId': typeof AppBuilderProjectIdRoute
+  '/api/public/mercado-pago-webhook': typeof ApiPublicMercadoPagoWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -99,6 +107,7 @@ export interface FileRoutesByTo {
   '/profile': typeof AppProfileRoute
   '/projects': typeof AppProjectsRoute
   '/builder/$projectId': typeof AppBuilderProjectIdRoute
+  '/api/public/mercado-pago-webhook': typeof ApiPublicMercadoPagoWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -113,6 +122,7 @@ export interface FileRoutesById {
   '/_app/profile': typeof AppProfileRoute
   '/_app/projects': typeof AppProjectsRoute
   '/_app/builder/$projectId': typeof AppBuilderProjectIdRoute
+  '/api/public/mercado-pago-webhook': typeof ApiPublicMercadoPagoWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -127,6 +137,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/projects'
     | '/builder/$projectId'
+    | '/api/public/mercado-pago-webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/projects'
     | '/builder/$projectId'
+    | '/api/public/mercado-pago-webhook'
   id:
     | '__root__'
     | '/'
@@ -152,6 +164,7 @@ export interface FileRouteTypes {
     | '/_app/profile'
     | '/_app/projects'
     | '/_app/builder/$projectId'
+    | '/api/public/mercado-pago-webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -160,6 +173,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  ApiPublicMercadoPagoWebhookRoute: typeof ApiPublicMercadoPagoWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -234,6 +248,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppBuilderRouteImport
       parentRoute: typeof AppRoute
     }
+    '/api/public/mercado-pago-webhook': {
+      id: '/api/public/mercado-pago-webhook'
+      path: '/api/public/mercado-pago-webhook'
+      fullPath: '/api/public/mercado-pago-webhook'
+      preLoaderRoute: typeof ApiPublicMercadoPagoWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/builder/$projectId': {
       id: '/_app/builder/$projectId'
       path: '/$projectId'
@@ -280,6 +301,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  ApiPublicMercadoPagoWebhookRoute: ApiPublicMercadoPagoWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
