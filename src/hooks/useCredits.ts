@@ -1,49 +1,42 @@
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { CREDIT_COSTS, CreditAction, CREDIT_LABELS } from "@/lib/credit-costs";
 import { toast } from "sonner";
+import { localStore, subscribeStore } from "@/lib/local-store";
 
+/**
+ * Sistema de créditos 100% local (localStorage).
+ * Backend Supabase queda preparado pero no se usa aquí para evitar romper en modo demo.
+ */
 export function useCredits() {
-  const { user } = useAuth();
-  const [balance, setBalance] = useState<number>(0);
-  const [unlimited, setUnlimited] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [balance, setBalance] = useState<number>(() => localStore.getCredits().balance);
+  const [unlimited, setUnlimited] = useState<boolean>(() => localStore.getCredits().unlimited);
 
-  const fetchCredits = useCallback(async () => {
-    if (!user) return;
-    const { data } = await supabase.from("credits").select("balance, unlimited").eq("user_id", user.id).maybeSingle();
-    if (data) {
-      setBalance(data.balance);
-      setUnlimited(data.unlimited);
-    }
-    setLoading(false);
-  }, [user]);
+  const refresh = useCallback(() => {
+    const c = localStore.getCredits();
+    setBalance(c.balance);
+    setUnlimited(c.unlimited);
+  }, []);
 
   useEffect(() => {
-    fetchCredits();
-    if (!user) return;
-    const ch = supabase
-      .channel("credits-" + user.id)
-      .on("postgres_changes", { event: "*", schema: "public", table: "credits", filter: `user_id=eq.${user.id}` }, fetchCredits)
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [user, fetchCredits]);
+    refresh();
+    return subscribeStore(refresh);
+  }, [refresh]);
 
-  const consume = useCallback(async (action: CreditAction): Promise<boolean> => {
-    const amount = CREDIT_COSTS[action];
-    if (!unlimited && balance < amount) {
-      toast.error(`Créditos insuficientes`, { description: `${CREDIT_LABELS[action]} cuesta ${amount} créditos. Tienes ${balance}.` });
-      return false;
-    }
-    const { data, error } = await supabase.rpc("consume_credits", { _amount: amount, _reason: CREDIT_LABELS[action] });
-    if (error || !data) {
-      toast.error("No se pudo consumir créditos");
-      return false;
-    }
-    await fetchCredits();
-    return true;
-  }, [balance, unlimited, fetchCredits]);
+  const consume = useCallback(
+    async (action: CreditAction): Promise<boolean> => {
+      const amount = CREDIT_COSTS[action];
+      const ok = localStore.consumeCredits(amount, CREDIT_LABELS[action]);
+      if (!ok) {
+        toast.error("Créditos insuficientes", {
+          description: `${CREDIT_LABELS[action]} cuesta ${amount} créditos.`,
+        });
+        return false;
+      }
+      refresh();
+      return true;
+    },
+    [refresh],
+  );
 
-  return { balance, unlimited, loading, consume, refresh: fetchCredits };
+  return { balance, unlimited, loading: false, consume, refresh };
 }
