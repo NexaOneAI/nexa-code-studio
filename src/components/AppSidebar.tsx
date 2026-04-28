@@ -24,7 +24,7 @@ export function AppSidebar() {
   const { balance, unlimited } = useCredits();
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border glass-card rounded-none">
       <SidebarHeader className="p-4">
         {!collapsed ? <Logo /> : <Logo size="sm" />}
       </SidebarHeader>
@@ -52,17 +52,18 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-3 space-y-2">
         {!collapsed && (
-          <div className="rounded-lg bg-sidebar-accent/40 p-3 text-xs">
-            <div className="text-muted-foreground">Créditos</div>
-            <div className="text-lg font-bold text-gradient">
+          <div className="relative rounded-xl p-3 text-xs glass-card neon-border overflow-hidden">
+            <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Créditos</div>
+            <div className="mt-0.5 text-2xl font-black text-gradient">
               {unlimited ? "∞" : balance}
             </div>
+            <div className="absolute inset-x-0 bottom-0 h-px nexa-shimmer opacity-60" />
           </div>
         )}
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start"
+          className="w-full justify-start hover:bg-sidebar-accent/60 hover:text-[color:var(--neon-cyan)]"
           onClick={() => {
             if (confirm("¿Reiniciar todos los datos locales (proyectos, créditos, historial)?")) {
               localStore.reset();

@@ -15,18 +15,19 @@ export const Route = createFileRoute("/")({
 
 function Landing() {
   return (
-    <div className="min-h-screen bg-background text-foreground bg-gradient-hero">
-      <header className="container mx-auto flex items-center justify-between px-4 py-6">
+    <div className="relative min-h-screen bg-background text-foreground bg-gradient-hero overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 grid-bg opacity-40" />
+      <header className="container relative mx-auto flex items-center justify-between px-4 py-6">
         <Logo />
         <div className="flex gap-2">
           <Button asChild variant="ghost"><Link to="/dashboard">Dashboard</Link></Button>
-          <Button asChild className="bg-gradient-primary border-0"><Link to="/builder">Empezar a construir</Link></Button>
+          <Button asChild className="bg-gradient-primary border-0 shadow-glow hover:opacity-95"><Link to="/builder">Empezar a construir</Link></Button>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-20 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/50 px-4 py-1.5 text-xs text-muted-foreground backdrop-blur">
-          <Sparkles className="h-3 w-3 text-primary" /> IA · Preview en vivo · Export Netlify
+      <main className="container relative mx-auto px-4 py-20 text-center">
+        <div className="inline-flex items-center gap-2 rounded-full glass-card neon-border px-4 py-1.5 text-xs text-muted-foreground">
+          <Sparkles className="h-3 w-3 text-[color:var(--neon-cyan)]" /> IA · Preview en vivo · Export Netlify
         </div>
         <h1 className="mt-6 text-5xl font-bold tracking-tight md:text-7xl">
           Crea apps web <span className="text-gradient">con IA</span><br/>en minutos.
@@ -38,7 +39,9 @@ function Landing() {
           <Button asChild size="lg" className="bg-gradient-primary border-0 shadow-glow">
             <Link to="/builder">Crear mi primera app — 25 créditos gratis <ArrowRight className="ml-2 h-4 w-4" /></Link>
           </Button>
-          <Button asChild size="lg" variant="outline"><Link to="/dashboard">Ver dashboard</Link></Button>
+          <Button asChild size="lg" variant="outline" className="border-[color:var(--neon-violet)]/40 hover:border-[color:var(--neon-cyan)] hover:text-[color:var(--neon-cyan)] bg-transparent">
+            <Link to="/dashboard">Ver dashboard</Link>
+          </Button>
         </div>
 
         <div className="mt-24 grid gap-6 md:grid-cols-3">
@@ -50,16 +53,18 @@ function Landing() {
             { icon: Zap, title: "Créditos justos", desc: "Paga solo por lo que generas. Plan free incluido." },
             { icon: Shield, title: "Seguro", desc: "Auth, roles y permisos listos. Tus datos protegidos." },
           ].map((f) => (
-            <div key={f.title} className="rounded-xl border border-border bg-card/40 p-6 text-left backdrop-blur transition hover:border-primary/50 hover:shadow-glow">
-              <f.icon className="h-6 w-6 text-primary" />
-              <h3 className="mt-3 font-semibold">{f.title}</h3>
+            <div key={f.title} className="group relative rounded-2xl glass-card p-6 text-left transition hover:shadow-glow hover:-translate-y-0.5 duration-300">
+              <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-primary shadow-neon">
+                <f.icon className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <h3 className="mt-4 font-semibold tracking-tight">{f.title}</h3>
               <p className="mt-1 text-sm text-muted-foreground">{f.desc}</p>
             </div>
           ))}
         </div>
       </main>
 
-      <footer className="border-t border-border py-8 text-center text-xs text-muted-foreground">
+      <footer className="relative border-t border-border py-8 text-center text-xs text-muted-foreground">
         © {new Date().getFullYear()} Nexa One Builder
       </footer>
     </div>
