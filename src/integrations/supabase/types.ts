@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      credit_purchases: {
+        Row: {
+          amount: number
+          created_at: string
+          credits: number
+          currency: string
+          id: string
+          mercado_pago_payment_id: string | null
+          mercado_pago_preference_id: string | null
+          plan_name: string
+          processed_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          credits: number
+          currency?: string
+          id?: string
+          mercado_pago_payment_id?: string | null
+          mercado_pago_preference_id?: string | null
+          plan_name: string
+          processed_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          credits?: number
+          currency?: string
+          id?: string
+          mercado_pago_payment_id?: string | null
+          mercado_pago_preference_id?: string | null
+          plan_name?: string
+          processed_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       credit_transactions: {
         Row: {
           amount: number
