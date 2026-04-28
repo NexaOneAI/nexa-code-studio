@@ -15,6 +15,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PaymentSuccessRouteImport } from './routes/payment.success'
+import { Route as PaymentPendingRouteImport } from './routes/payment.pending'
 import { Route as PaymentFailureRouteImport } from './routes/payment.failure'
 import { Route as AppProjectsRouteImport } from './routes/_app.projects'
 import { Route as AppProfileRouteImport } from './routes/_app.profile'
@@ -51,6 +52,11 @@ const IndexRoute = IndexRouteImport.update({
 const PaymentSuccessRoute = PaymentSuccessRouteImport.update({
   id: '/payment/success',
   path: '/payment/success',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaymentPendingRoute = PaymentPendingRouteImport.update({
+  id: '/payment/pending',
+  path: '/payment/pending',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PaymentFailureRoute = PaymentFailureRouteImport.update({
@@ -106,6 +112,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof AppProfileRoute
   '/projects': typeof AppProjectsRoute
   '/payment/failure': typeof PaymentFailureRoute
+  '/payment/pending': typeof PaymentPendingRoute
   '/payment/success': typeof PaymentSuccessRoute
   '/builder/$projectId': typeof AppBuilderProjectIdRoute
   '/api/public/mercado-pago-webhook': typeof ApiPublicMercadoPagoWebhookRoute
@@ -121,6 +128,7 @@ export interface FileRoutesByTo {
   '/profile': typeof AppProfileRoute
   '/projects': typeof AppProjectsRoute
   '/payment/failure': typeof PaymentFailureRoute
+  '/payment/pending': typeof PaymentPendingRoute
   '/payment/success': typeof PaymentSuccessRoute
   '/builder/$projectId': typeof AppBuilderProjectIdRoute
   '/api/public/mercado-pago-webhook': typeof ApiPublicMercadoPagoWebhookRoute
@@ -138,6 +146,7 @@ export interface FileRoutesById {
   '/_app/profile': typeof AppProfileRoute
   '/_app/projects': typeof AppProjectsRoute
   '/payment/failure': typeof PaymentFailureRoute
+  '/payment/pending': typeof PaymentPendingRoute
   '/payment/success': typeof PaymentSuccessRoute
   '/_app/builder/$projectId': typeof AppBuilderProjectIdRoute
   '/api/public/mercado-pago-webhook': typeof ApiPublicMercadoPagoWebhookRoute
@@ -155,6 +164,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/projects'
     | '/payment/failure'
+    | '/payment/pending'
     | '/payment/success'
     | '/builder/$projectId'
     | '/api/public/mercado-pago-webhook'
@@ -170,6 +180,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/projects'
     | '/payment/failure'
+    | '/payment/pending'
     | '/payment/success'
     | '/builder/$projectId'
     | '/api/public/mercado-pago-webhook'
@@ -186,6 +197,7 @@ export interface FileRouteTypes {
     | '/_app/profile'
     | '/_app/projects'
     | '/payment/failure'
+    | '/payment/pending'
     | '/payment/success'
     | '/_app/builder/$projectId'
     | '/api/public/mercado-pago-webhook'
@@ -198,6 +210,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   PaymentFailureRoute: typeof PaymentFailureRoute
+  PaymentPendingRoute: typeof PaymentPendingRoute
   PaymentSuccessRoute: typeof PaymentSuccessRoute
   ApiPublicMercadoPagoWebhookRoute: typeof ApiPublicMercadoPagoWebhookRoute
 }
@@ -244,6 +257,13 @@ declare module '@tanstack/react-router' {
       path: '/payment/success'
       fullPath: '/payment/success'
       preLoaderRoute: typeof PaymentSuccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/payment/pending': {
+      id: '/payment/pending'
+      path: '/payment/pending'
+      fullPath: '/payment/pending'
+      preLoaderRoute: typeof PaymentPendingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/payment/failure': {
@@ -342,6 +362,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   PaymentFailureRoute: PaymentFailureRoute,
+  PaymentPendingRoute: PaymentPendingRoute,
   PaymentSuccessRoute: PaymentSuccessRoute,
   ApiPublicMercadoPagoWebhookRoute: ApiPublicMercadoPagoWebhookRoute,
 }
