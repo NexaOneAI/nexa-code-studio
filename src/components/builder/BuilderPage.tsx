@@ -8,7 +8,7 @@ import { useCredits } from "@/hooks/useCredits";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
+import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from "react-resizable-panels";
 import { PreviewPane } from "./PreviewPane";
 import { CodeEditor, FileItem } from "./CodeEditor";
 import { exportProjectZip } from "@/lib/exportZip";
