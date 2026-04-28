@@ -2,35 +2,60 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-function createSupabaseClient() {
-  // Use import.meta.env for client-side (Vite build-time replacement)
-  // Fall back to process.env for SSR (server-side rendering)
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+/** Lee las variables soportando todos los nombres habituales sin romper. */
+function readEnv() {
+  const env = (typeof import.meta !== 'undefined' ? (import.meta as any).env : {}) || {};
+  const proc = (typeof process !== 'undefined' ? process.env : {}) || {};
+  const url =
+    env.VITE_SUPABASE_URL ||
+    proc.SUPABASE_URL ||
+    env.SUPABASE_URL;
+  const key =
+    env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    env.VITE_SUPABASE_ANON_KEY ||
+    proc.SUPABASE_PUBLISHABLE_KEY ||
+    env.SUPABASE_PUBLISHABLE_KEY;
+  return { url: url as string | undefined, key: key as string | undefined };
+}
 
-  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-    throw new Error(
-      'Missing Supabase environment variables. Ensure SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (or VITE_ prefixed versions) are set in your .env file.'
-    );
-  }
+const { url: SUPABASE_URL, key: SUPABASE_PUBLISHABLE_KEY } = readEnv();
 
-  return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+/** True si el cliente puede conectarse realmente con Supabase. */
+export const isSupabaseConfigured = (): boolean =>
+  Boolean(SUPABASE_URL && SUPABASE_PUBLISHABLE_KEY);
+
+function buildClient() {
+  if (!isSupabaseConfigured()) return null;
+  return createClient<Database>(SUPABASE_URL!, SUPABASE_PUBLISHABLE_KEY!, {
     auth: {
-      storage: typeof window !== 'undefined' ? localStorage : undefined,
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
       persistSession: true,
       autoRefreshToken: true,
-    }
+    },
   });
 }
 
-let _supabase: ReturnType<typeof createSupabaseClient> | undefined;
+/**
+ * Cliente real de Supabase. Será `null` si faltan las variables.
+ * Úsalo SIEMPRE detrás de `if (isSupabaseConfigured())` o de la capa de
+ * servicios en `src/services/` que ya gestiona el fallback local.
+ */
+export const supabaseClient = buildClient();
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
-export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient>, {
-  get(_, prop, receiver) {
-    if (!_supabase) _supabase = createSupabaseClient();
-    return Reflect.get(_supabase, prop, receiver);
+/**
+ * Proxy de compatibilidad para código existente: NO rompe en import,
+ * pero lanza un error claro si se intenta usar sin configurar.
+ * Preferir `supabaseClient` o los servicios en nuevo código.
+ */
+export const supabase = new Proxy({} as NonNullable<ReturnType<typeof buildClient>>, {
+  get(_t, prop, receiver) {
+    if (!supabaseClient) {
+      throw new Error(
+        '[Supabase] No configurado. Faltan VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY. ' +
+          'Usa los servicios de src/services/ que tienen fallback local.',
+      );
+    }
+    return Reflect.get(supabaseClient, prop, receiver);
   },
 });
 
