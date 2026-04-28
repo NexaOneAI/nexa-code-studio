@@ -1,13 +1,14 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Sparkles, FolderKanban, CreditCard, Shield, LogOut, User } from "lucide-react";
+import { LayoutDashboard, Sparkles, FolderKanban, CreditCard, RotateCcw } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 import { Logo } from "./Logo";
-import { useAuth } from "@/contexts/AuthContext";
 import { useCredits } from "@/hooks/useCredits";
 import { Button } from "./ui/button";
+import { localStore } from "@/lib/local-store";
+import { toast } from "sonner";
 
 const items = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -20,7 +21,6 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const path = useRouterState({ select: (r) => r.location.pathname });
-  const { user, signOut } = useAuth();
   const { balance, unlimited } = useCredits();
 
   return (
@@ -59,15 +59,19 @@ export function AppSidebar() {
             </div>
           </div>
         )}
-        {!collapsed && user && (
-          <Link to="/profile" className="flex items-center gap-2 rounded-md p-2 text-xs hover:bg-sidebar-accent transition">
-            <User className="h-4 w-4" />
-            <span className="truncate">{user.email}</span>
-          </Link>
-        )}
-        <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start">
-          <LogOut className="h-4 w-4" />
-          {!collapsed && <span className="ml-2">Salir</span>}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start"
+          onClick={() => {
+            if (confirm("¿Reiniciar todos los datos locales (proyectos, créditos, historial)?")) {
+              localStore.reset();
+              toast.success("Datos locales reiniciados");
+            }
+          }}
+        >
+          <RotateCcw className="h-4 w-4" />
+          {!collapsed && <span className="ml-2">Reiniciar demo</span>}
         </Button>
       </SidebarFooter>
     </Sidebar>
