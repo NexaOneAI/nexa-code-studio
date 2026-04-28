@@ -68,6 +68,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingStage, setLoadingStage] = useState<string>("");
   const [currentProjectId, setCurrentProjectId] = useState<string | undefined>(projectId);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -123,6 +124,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
     }
 
     setLoading(true);
+    setLoadingStage(mode === "generate" ? "Pensando la arquitectura…" : "Aplicando cambios…");
     setMessages((m) => [...m, { role: "user", content: finalPrompt || `Acción: ${mode}` }]);
 
     try {
@@ -138,6 +140,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       };
 
       if (useRemote) {
+        setLoadingStage("Generando código con IA…");
         // Servidor: descuenta créditos vía RPC + llama a OpenAI + registra generación.
         const resp = await generateApp({
           data: {
@@ -150,15 +153,19 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
           },
         });
         if (!resp.ok) {
-          toast.error("Generación falló", { description: resp.error });
+          const isCredits = (resp as any).code === "INSUFFICIENT_CREDITS";
+          const desc = isCredits ? "Recarga créditos para continuar." : resp.error;
+          toast.error(isCredits ? "Créditos insuficientes" : "Generación falló", { description: desc });
           setMessages((m) => [...m, { role: "ai", content: `❌ ${resp.error}` }]);
           await refresh();
           return;
         }
+        // Validar archivos antes de mostrar.
+        const validFiles = validateGeneratedFiles(resp.files as any);
         result = {
           name: resp.name,
           description: resp.description,
-          files: resp.files as FileItem[],
+          files: validFiles,
           suggestions: resp.suggestions,
           model: resp.model,
         };
@@ -167,8 +174,10 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         // Modo local: descuenta vía store local + generador de plantillas.
         const ok = await consume(action);
         if (!ok) return;
+        setLoadingStage("Construyendo plantilla…");
         await new Promise((r) => setTimeout(r, 250));
-        result = generateLocal(finalPrompt || mode, mode, currentHtml);
+        const local = generateLocal(finalPrompt || mode, mode, currentHtml);
+        result = { ...local, files: validateGeneratedFiles(local.files) };
         localStore.recordGeneration({
           project_id: currentProjectId ?? "local",
           prompt: finalPrompt,
@@ -177,6 +186,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
           model: result.model,
         });
       }
+
+      setLoadingStage("Actualizando vista previa…");
 
       // Para acciones distintas a "generate" preservamos los archivos existentes y
       // sólo sustituimos los modificados.
@@ -215,10 +226,12 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       setPrompt("");
       toast.success("Generación completada");
     } catch (e: any) {
-      toast.error("Error", { description: e?.message || "Falló la generación" });
-      setMessages((m) => [...m, { role: "ai", content: `❌ ${e?.message || "Error desconocido"}` }]);
+      const msg = e?.message || "Falló la generación";
+      toast.error("Error en la generación", { description: msg });
+      setMessages((m) => [...m, { role: "ai", content: `❌ ${msg}` }]);
     } finally {
       setLoading(false);
+      setLoadingStage("");
     }
   };
 
