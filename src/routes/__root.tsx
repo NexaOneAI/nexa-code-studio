@@ -39,13 +39,18 @@ export const Route = createRootRoute({
       { property: "og:title", content: "Nexa One Builder" },
       { property: "og:description", content: "Crea apps web con IA, en vivo." },
       { property: "og:type", content: "website" },
+      { property: "og:image", content: "/nexa-logo.jpeg" },
       { name: "twitter:card", content: "summary" },
+      { name: "twitter:image", content: "/nexa-logo.jpeg" },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
       },
+      { rel: "icon", type: "image/jpeg", href: "/nexa-logo.jpeg" },
+      { rel: "apple-touch-icon", href: "/nexa-logo.jpeg" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
     ],
   }),
   shellComponent: RootShell,
