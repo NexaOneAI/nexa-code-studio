@@ -3,7 +3,9 @@ import { useEffect, useState } from "react";
 import { useCredits } from "@/hooks/useCredits";
 import { Button } from "@/components/ui/button";
 import { Sparkles, FolderKanban, CreditCard, Zap } from "lucide-react";
-import { localStore, subscribeStore, type LocalProject } from "@/lib/local-store";
+import { projectsService, type ProjectSummary } from "@/services/projects.service";
+import { localStore, subscribeStore } from "@/lib/local-store";
+import { supabaseClient } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Nexa One" }] }),
@@ -12,16 +14,31 @@ export const Route = createFileRoute("/_app/dashboard")({
 
 function Dashboard() {
   const { balance, unlimited } = useCredits();
-  const [projects, setProjects] = useState<LocalProject[]>([]);
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [genCount, setGenCount] = useState(0);
 
   useEffect(() => {
-    const refresh = () => {
-      setProjects(localStore.listProjects().slice(0, 6));
+    let alive = true;
+    const refresh = async () => {
+      const list = await projectsService.list();
+      if (!alive) return;
+      setProjects(list.slice(0, 6));
+      // Generaciones: si hay sesión Supabase, contamos; si no, usamos local.
+      if (supabaseClient) {
+        const { data: sess } = await supabaseClient.auth.getSession();
+        if (sess.session) {
+          const { count } = await supabaseClient
+            .from("generations")
+            .select("id", { count: "exact", head: true });
+          if (alive) setGenCount(count || 0);
+          return;
+        }
+      }
       setGenCount(localStore.listGenerations().length);
     };
     refresh();
-    return subscribeStore(refresh);
+    const off = subscribeStore(refresh);
+    return () => { alive = false; off(); };
   }, []);
 
   const name = "Creador";

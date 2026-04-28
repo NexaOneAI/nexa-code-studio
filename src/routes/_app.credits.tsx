@@ -5,7 +5,9 @@ import { CREDIT_COSTS, CREDIT_LABELS } from "@/lib/credit-costs";
 import { Button } from "@/components/ui/button";
 import { CreditCard, Check, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { localStore, subscribeStore, type LocalTx } from "@/lib/local-store";
+import { subscribeStore } from "@/lib/local-store";
+import { creditsService } from "@/services/credits.service";
+import { supabaseClient } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_app/credits")({
   head: () => ({ meta: [{ title: "Créditos — Nexa One" }] }),
@@ -19,18 +21,46 @@ const PACKS = [
 ];
 
 function CreditsPage() {
-  const { balance, unlimited } = useCredits();
-  const [tx, setTx] = useState<LocalTx[]>([]);
+  const { balance, unlimited, refresh } = useCredits();
+  const [tx, setTx] = useState<Array<{ id: string; amount: number; reason: string; created_at: string }>>([]);
+  const [isLocal, setIsLocal] = useState(true);
 
   useEffect(() => {
-    const load = () => setTx(localStore.listTransactions().slice(0, 50));
+    let alive = true;
+    const load = async () => {
+      const data = await creditsService.listTransactions();
+      if (!alive) return;
+      setTx(data);
+      setIsLocal(await creditsService.isLocal());
+    };
     load();
-    return subscribeStore(load);
+    const off = subscribeStore(load);
+    let unsub: (() => void) | undefined;
+    if (supabaseClient) {
+      const { data: sub } = supabaseClient.auth.onAuthStateChange(() => load());
+      unsub = () => sub.subscription.unsubscribe();
+    }
+    return () => { alive = false; off(); unsub?.(); };
   }, []);
 
-  const addDemo = (n: number) => {
-    localStore.addCredits(n, `Recarga demo +${n}`);
+  const addDemo = async (n: number) => {
+    if (!isLocal) {
+      toast.info("En modo Supabase los créditos se cargan vía pagos o admin.");
+      return;
+    }
+    creditsService.addDemoLocal(n, `Recarga demo +${n}`);
     toast.success(`+${n} créditos añadidos (demo)`);
+    refresh();
+  };
+
+  const toggleUnlimited = async () => {
+    if (!isLocal) {
+      toast.info("Modo ilimitado sólo disponible en local.");
+      return;
+    }
+    creditsService.toggleUnlimitedLocal();
+    toast.success(unlimited ? "Modo limitado" : "Modo ilimitado");
+    refresh();
   };
 
   return (
@@ -44,13 +74,18 @@ function CreditsPage() {
         <CreditCard className="mx-auto h-8 w-8 text-primary" />
         <div className="mt-3 text-5xl font-bold text-gradient">{unlimited ? "∞" : balance}</div>
         <p className="text-muted-foreground mt-1">{unlimited ? "Créditos ilimitados activos" : "Créditos disponibles"}</p>
-        <div className="mt-5 flex flex-wrap justify-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => addDemo(10)}><Plus className="h-3.5 w-3.5 mr-1" />+10 demo</Button>
-          <Button size="sm" variant="outline" onClick={() => addDemo(50)}><Plus className="h-3.5 w-3.5 mr-1" />+50 demo</Button>
-          <Button size="sm" variant="outline" onClick={() => { localStore.setUnlimited(!unlimited); toast.success(unlimited ? "Modo limitado" : "Modo ilimitado"); }}>
-            {unlimited ? "Desactivar ilimitado" : "Activar ilimitado"}
-          </Button>
-        </div>
+        {isLocal && (
+          <div className="mt-5 flex flex-wrap justify-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => addDemo(10)}><Plus className="h-3.5 w-3.5 mr-1" />+10 demo</Button>
+            <Button size="sm" variant="outline" onClick={() => addDemo(50)}><Plus className="h-3.5 w-3.5 mr-1" />+50 demo</Button>
+            <Button size="sm" variant="outline" onClick={toggleUnlimited}>
+              {unlimited ? "Desactivar ilimitado" : "Activar ilimitado"}
+            </Button>
+          </div>
+        )}
+        {!isLocal && (
+          <div className="mt-3 text-xs text-muted-foreground">Sincronizado con Supabase</div>
+        )}
       </div>
 
       <section>
