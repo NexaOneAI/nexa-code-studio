@@ -2,10 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useCredits } from "@/hooks/useCredits";
 import { Button } from "@/components/ui/button";
-import { Sparkles, FolderKanban, CreditCard, Zap } from "lucide-react";
+import { Sparkles, FolderKanban, CreditCard, Zap, Activity, Infinity as InfinityIcon } from "lucide-react";
 import { projectsService, type ProjectSummary } from "@/services/projects.service";
 import { localStore, subscribeStore } from "@/lib/local-store";
 import { supabaseClient } from "@/integrations/supabase/client";
+import { creditsService } from "@/services/credits.service";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Nexa One" }] }),
@@ -16,6 +17,7 @@ function Dashboard() {
   const { balance, unlimited } = useCredits();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [genCount, setGenCount] = useState(0);
+  const [transactions, setTransactions] = useState<Array<{ id: string; amount: number; reason: string; created_at: string }>>([]);
 
   useEffect(() => {
     let alive = true;
@@ -36,10 +38,20 @@ function Dashboard() {
       }
       setGenCount(localStore.listGenerations().length);
     };
+    const refreshTx = async () => {
+      const tx = await creditsService.listTransactions();
+      if (alive) setTransactions(tx.slice(0, 6));
+    };
     refresh();
-    const off = subscribeStore(refresh);
+    refreshTx();
+    const off = subscribeStore(() => { refresh(); refreshTx(); });
     return () => { alive = false; off(); };
   }, []);
+
+  // Refresca transacciones cada vez que cambia el balance (créditos en tiempo real).
+  useEffect(() => {
+    creditsService.listTransactions().then((tx) => setTransactions(tx.slice(0, 6)));
+  }, [balance, unlimited]);
 
   const name = "Creador";
 
@@ -56,10 +68,46 @@ function Dashboard() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Stat icon={CreditCard} label="Créditos" value={unlimited ? "Ilimitado" : String(balance)} />
+        <Stat
+          icon={unlimited ? InfinityIcon : CreditCard}
+          label="Créditos disponibles"
+          value={unlimited ? "Ilimitado" : String(balance)}
+          accent={!unlimited && balance < 5 ? "warn" : "ok"}
+        />
         <Stat icon={FolderKanban} label="Proyectos" value={String(projects.length)} />
         <Stat icon={Zap} label="Generaciones" value={String(genCount)} />
       </div>
+
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Activity className="h-5 w-5 text-primary" />
+            Consumo de créditos
+          </h2>
+          <Button asChild variant="ghost" size="sm"><Link to="/credits">Ver historial</Link></Button>
+        </div>
+        {transactions.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            Aún no se han consumido créditos. Crea tu primera app.
+          </div>
+        ) : (
+          <div className="rounded-xl border border-border bg-card/40 divide-y divide-border">
+            {transactions.map((t) => (
+              <div key={t.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{t.reason}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {new Date(t.created_at).toLocaleString()}
+                  </div>
+                </div>
+                <div className={`font-mono font-semibold ${t.amount < 0 ? "text-red-400" : "text-emerald-400"}`}>
+                  {t.amount > 0 ? "+" : ""}{t.amount}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section>
         <div className="flex items-center justify-between mb-4">
@@ -89,13 +137,13 @@ function Dashboard() {
   );
 }
 
-function Stat({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
+function Stat({ icon: Icon, label, value, accent }: { icon: any; label: string; value: string; accent?: "ok" | "warn" }) {
   return (
-    <div className="rounded-xl border border-border bg-card/40 p-5">
+    <div className={`rounded-xl border bg-card/40 p-5 ${accent === "warn" ? "border-amber-500/40" : "border-border"}`}>
       <div className="flex items-center gap-2 text-muted-foreground text-sm">
         <Icon className="h-4 w-4" />{label}
       </div>
-      <div className="mt-2 text-3xl font-bold text-gradient">{value}</div>
+      <div className={`mt-2 text-3xl font-bold ${accent === "warn" ? "text-amber-400" : "text-gradient"}`}>{value}</div>
     </div>
   );
 }
