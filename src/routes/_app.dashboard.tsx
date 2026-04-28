@@ -2,13 +2,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useCredits } from "@/hooks/useCredits";
 import { Button } from "@/components/ui/button";
-import { Sparkles, FolderKanban, CreditCard, Zap, Activity, Infinity as InfinityIcon, Shield } from "lucide-react";
+import { Sparkles, FolderKanban, CreditCard, Zap, Activity, Infinity as InfinityIcon, Shield, CheckCircle2, X } from "lucide-react";
 import { projectsService, type ProjectSummary } from "@/services/projects.service";
 import { localStore, subscribeStore } from "@/lib/local-store";
 import { supabaseClient } from "@/integrations/supabase/client";
 import { creditsService } from "@/services/credits.service";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { Badge } from "@/components/ui/badge";
+import { usePaymentNotifications } from "@/hooks/usePaymentNotifications";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Nexa One" }] }),
@@ -22,6 +23,11 @@ function Dashboard() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [genCount, setGenCount] = useState(0);
   const [transactions, setTransactions] = useState<Array<{ id: string; amount: number; reason: string; created_at: string }>>([]);
+  const [lastApproved, setLastApproved] = useState<{ id: string; credits: number; plan_name: string } | null>(null);
+
+  usePaymentNotifications({
+    onApproved: (p) => setLastApproved(p),
+  });
 
   useEffect(() => {
     let alive = true;
@@ -61,6 +67,36 @@ function Dashboard() {
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8">
+      {lastApproved && (
+        <div className="relative overflow-hidden rounded-2xl border border-emerald-500/40 bg-emerald-500/10 backdrop-blur-xl p-4 sm:p-5 shadow-glow flex items-start gap-4">
+          <div className="shrink-0 mt-0.5 h-10 w-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+            <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold text-emerald-300">¡Pago aprobado!</div>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Se acreditaron <strong className="text-foreground">{lastApproved.credits} créditos</strong> del plan{" "}
+              <strong className="text-foreground">{lastApproved.plan_name}</strong> a tu cuenta.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button asChild size="sm" className="bg-gradient-primary border-0">
+                <Link to="/credits">Ver historial de compras</Link>
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setLastApproved(null)}>
+                Cerrar
+              </Button>
+            </div>
+          </div>
+          <button
+            onClick={() => setLastApproved(null)}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label="Cerrar notificación"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3 flex-wrap">
