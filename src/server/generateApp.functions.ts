@@ -6,6 +6,9 @@ const InputSchema = z.object({
   prompt: z.string().min(3).max(4000),
   context: z.string().max(20000).optional(),
   mode: z.enum(["generate", "improve", "fix", "mobile", "optimize", "netlify"]).default("generate"),
+  projectId: z.string().uuid().optional(),
+  cost: z.number().int().min(1).max(50),
+  reason: z.string().min(1).max(120),
 });
 
 const SYSTEM_PROMPT = `Eres Nexa One Builder, un generador experto de aplicaciones web standalone.
