@@ -40,7 +40,7 @@ function RegisterPage() {
         <div className="mb-8 flex justify-center"><Logo size="lg" /></div>
         <div className="rounded-2xl border border-border bg-card/60 p-8 backdrop-blur shadow-elevated">
           <h1 className="text-2xl font-bold">Crear cuenta</h1>
-          <p className="mt-1 text-sm text-muted-foreground">10 créditos gratis al registrarte</p>
+          <p className="mt-1 text-sm text-muted-foreground">25 créditos gratis al registrarte</p>
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
             <div>
               <Label htmlFor="name">Nombre</Label>
