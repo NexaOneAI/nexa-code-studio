@@ -1,14 +1,54 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { SupabaseStatusBanner } from "@/components/SupabaseStatusBanner";
+import { useEffect, useState } from "react";
+import { supabaseClient, isSupabaseConfigured } from "@/integrations/supabase/client";
+import { useNavigate } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
 });
 
 function AppLayout() {
-  // Modo local demo: no requerimos login. El backend queda preparado para activarse luego.
+  const nav = useNavigate();
+  const [checking, setChecking] = useState(true);
+  const [authed, setAuthed] = useState(false);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured() || !supabaseClient) {
+      // Sin backend no podemos validar sesión: bloquear y mandar a login.
+      setChecking(false);
+      setAuthed(false);
+      nav({ to: "/login" });
+      return;
+    }
+    const sb = supabaseClient;
+    const { data: sub } = sb.auth.onAuthStateChange((_e, s) => {
+      const ok = !!s?.user;
+      setAuthed(ok);
+      setChecking(false);
+      if (!ok) nav({ to: "/login" });
+    });
+    sb.auth.getSession().then(({ data }) => {
+      const ok = !!data.session?.user;
+      setAuthed(ok);
+      setChecking(false);
+      if (!ok) nav({ to: "/login" });
+    });
+    return () => sub.subscription.unsubscribe();
+  }, [nav]);
+
+  if (checking) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-background bg-gradient-hero">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+  if (!authed) return null;
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background bg-gradient-hero">
