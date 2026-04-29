@@ -78,8 +78,8 @@ export async function exportProjectZip(name: string, files: FileItem[]) {
   // Imports dinámicos: evitan que file-saver (CommonJS) y JSZip
   // entren en el bundle SSR de Netlify Functions.
   // Si están precargados, esto resuelve al instante y funciona offline.
-  let JSZip: typeof import("jszip").default;
-  let saveAs: typeof import("file-saver").saveAs;
+  let JSZip: any;
+  let saveAs: (blob: Blob, filename: string) => void;
   try {
     const [jszipMod, fileSaverMod] = await Promise.all([
       import("jszip"),
