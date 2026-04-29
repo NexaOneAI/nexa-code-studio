@@ -1,0 +1,14 @@
+# Netlify deployment for Nexa App Studio (TanStack Start SSR)
+# El plugin @netlify/vite-plugin-tanstack-start crea la Function de servidor
+# automáticamente. NO añadir redirects SPA: el handler SSR ya enruta todo.
+
+[build]
+  command = "vite build"
+  publish = "dist/client"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[dev]
+  command = "vite dev"
+  port = 3000
