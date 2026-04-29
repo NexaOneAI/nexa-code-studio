@@ -350,8 +350,25 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
           <ActBtn icon={Smartphone} label="Móvil" cost={CREDIT_COSTS.feature_medium} onClick={() => runAction("mobile", "feature_medium", "Optimiza para móvil")} disabled={loading || files.length === 0} />
           <ActBtn icon={Zap} label="Optimizar" cost={CREDIT_COSTS.visual_change} onClick={() => runAction("optimize", "visual_change", "Optimiza rendimiento y accesibilidad")} disabled={loading || files.length === 0} />
           <ActBtn icon={Rocket} label="Netlify" cost={CREDIT_COSTS.visual_change} onClick={() => runAction("netlify", "visual_change", "Prepara para Netlify")} disabled={loading || files.length === 0} />
-          <Button size="sm" onClick={handleExport} disabled={loading || files.length === 0} variant="outline">
-            <Download className="h-3.5 w-3.5 mr-1" /> ZIP <span className="ml-1 text-[10px] opacity-60">{CREDIT_COSTS.export_zip}c</span>
+          <Button
+            size="sm"
+            onClick={handleExport}
+            disabled={loading || files.length === 0 || (!exportReady && !isOnline)}
+            variant="outline"
+            title={
+              !exportReady && !isOnline
+                ? "Sin conexión: conéctate al menos una vez para habilitar la exportación offline"
+                : !isOnline
+                  ? "Modo offline (exportación lista)"
+                  : "Exportar como ZIP"
+            }
+          >
+            {!isOnline ? (
+              <WifiOff className="h-3.5 w-3.5 mr-1" />
+            ) : (
+              <Download className="h-3.5 w-3.5 mr-1" />
+            )}
+            ZIP <span className="ml-1 text-[10px] opacity-60">{CREDIT_COSTS.export_zip}c</span>
           </Button>
         </div>
       </div>
