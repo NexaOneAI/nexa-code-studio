@@ -3,9 +3,8 @@ import { useEffect, useState } from "react";
 import { useCredits } from "@/hooks/useCredits";
 import { CREDIT_COSTS, CREDIT_LABELS } from "@/lib/credit-costs";
 import { Button } from "@/components/ui/button";
-import { CreditCard, Check, Plus, Sparkles, Loader2 } from "lucide-react";
+import { CreditCard, Check, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { subscribeStore } from "@/lib/local-store";
 import { creditsService } from "@/services/credits.service";
 import { supabaseClient } from "@/integrations/supabase/client";
 import { CREDIT_PLAN_LIST, type CreditPlanId } from "@/lib/credit-plans";
@@ -18,11 +17,10 @@ export const Route = createFileRoute("/_app/credits")({
 });
 
 function CreditsPage() {
-  const { balance, unlimited, refresh } = useCredits();
+  const { balance, unlimited } = useCredits();
   const adminState = useIsAdmin();
   const isAdmin = typeof adminState === "boolean" ? adminState : adminState.isAdmin;
   const [tx, setTx] = useState<Array<{ id: string; amount: number; reason: string; created_at: string }>>([]);
-  const [isLocal, setIsLocal] = useState(true);
   const [buyingPlan, setBuyingPlan] = useState<CreditPlanId | null>(null);
 
   useEffect(() => {
@@ -31,45 +29,19 @@ function CreditsPage() {
       const data = await creditsService.listTransactions();
       if (!alive) return;
       setTx(data);
-      setIsLocal(await creditsService.isLocal());
     };
     load();
-    const off = subscribeStore(load);
     let unsub: (() => void) | undefined;
     if (supabaseClient) {
       const { data: sub } = supabaseClient.auth.onAuthStateChange(() => load());
       unsub = () => sub.subscription.unsubscribe();
     }
-    return () => { alive = false; off(); unsub?.(); };
+    return () => { alive = false; unsub?.(); };
   }, []);
-
-  const addDemo = async (n: number) => {
-    if (!isLocal) {
-      toast.info("En modo Supabase los créditos se cargan vía pagos o admin.");
-      return;
-    }
-    creditsService.addDemoLocal(n, `Recarga demo +${n}`);
-    toast.success(`+${n} créditos añadidos (demo)`);
-    refresh();
-  };
-
-  const toggleUnlimited = async () => {
-    if (!isLocal) {
-      toast.info("Modo ilimitado sólo disponible en local.");
-      return;
-    }
-    creditsService.toggleUnlimitedLocal();
-    toast.success(unlimited ? "Modo limitado" : "Modo ilimitado");
-    refresh();
-  };
 
   const handleBuy = async (planId: CreditPlanId) => {
     if (isAdmin) {
       toast.info("Eres administrador: tus créditos son ilimitados.");
-      return;
-    }
-    if (isLocal) {
-      toast.error("Inicia sesión para comprar créditos con Mercado Pago.");
       return;
     }
     setBuyingPlan(planId);
@@ -99,18 +71,7 @@ function CreditsPage() {
         <CreditCard className="mx-auto h-8 w-8 text-primary" />
         <div className="mt-3 text-5xl font-bold text-gradient">{unlimited ? "∞" : balance}</div>
         <p className="text-muted-foreground mt-1">{unlimited ? "Créditos ilimitados activos" : "Créditos disponibles"}</p>
-        {isLocal && (
-          <div className="mt-5 flex flex-wrap justify-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => addDemo(10)}><Plus className="h-3.5 w-3.5 mr-1" />+10 demo</Button>
-            <Button size="sm" variant="outline" onClick={() => addDemo(50)}><Plus className="h-3.5 w-3.5 mr-1" />+50 demo</Button>
-            <Button size="sm" variant="outline" onClick={toggleUnlimited}>
-              {unlimited ? "Desactivar ilimitado" : "Activar ilimitado"}
-            </Button>
-          </div>
-        )}
-        {!isLocal && (
-          <div className="mt-3 text-xs text-muted-foreground">Sincronizado con Supabase</div>
-        )}
+        <div className="mt-3 text-xs text-muted-foreground">Sincronizado con la nube</div>
       </div>
 
       <section>
