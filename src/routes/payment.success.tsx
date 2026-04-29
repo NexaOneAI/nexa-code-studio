@@ -4,6 +4,7 @@ import { CheckCircle2, Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getPurchaseStatus } from "@/server/mercadoPago.functions";
 import { useCredits } from "@/hooks/useCredits";
+import { authedHeaders } from "@/lib/auth-headers";
 import { z } from "zod";
 
 const Search = z.object({
@@ -33,7 +34,10 @@ function PaymentSuccess() {
     let attempts = 0;
     const poll = async () => {
       try {
-        const res = await getPurchaseStatus({ data: { purchase_id } });
+        const res = await getPurchaseStatus({
+          headers: await authedHeaders(),
+          data: { purchase_id },
+        });
         if (!alive) return;
         if (res.purchase) {
           setStatus(res.purchase.status);

@@ -8,6 +8,7 @@ import {
   adminStats,
 } from "@/server/admin.functions";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { authedHeaders } from "@/lib/auth-headers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -109,11 +110,12 @@ function AdminPage() {
   const loadAll = async () => {
     setLoading(true);
     try {
+      const headers = await authedHeaders();
       const [s, u, p, t] = await Promise.all([
-        fnStats({ data: {} }),
-        fnUsers({ data: { search: userSearch.trim() || null } }),
-        fnPurchases({ data: filters }),
-        fnTx({ data: filters }),
+        fnStats({ headers, data: {} }),
+        fnUsers({ headers, data: { search: userSearch.trim() || null } }),
+        fnPurchases({ headers, data: filters }),
+        fnTx({ headers, data: filters }),
       ]);
       setStats(s);
       setUsers(u.users as UserRow[]);
