@@ -30,6 +30,7 @@ import {
 } from "@/lib/ai-providers";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { BuilderWizard, type WizardResult } from "./wizard/BuilderWizard";
 
 interface Msg { role: "user" | "ai"; content: string; provider?: AIProvider; model?: string; }
 
@@ -85,6 +86,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
   const [exportReady, setExportReady] = useState<boolean>(() => isExportZipReady());
+  // Wizard visible cuando es un proyecto nuevo y aún no se ha generado nada.
+  const [showWizard, setShowWizard] = useState<boolean>(() => !projectId);
 
   // Precargar dependencias de exportación (jszip + file-saver) al montar.
   // Así, si el usuario pierde la conexión más tarde, la exportación
@@ -113,6 +116,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       setName(proj.name);
       setFiles(proj.files);
       setCurrentProjectId(proj.id);
+      setShowWizard(false);
     });
     return () => { alive = false; };
   }, [projectId]);
@@ -331,6 +335,29 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       });
     }
   };
+
+  const handleWizardGenerate = async (r: WizardResult) => {
+    setName(r.name);
+    setPrompt(r.composedPrompt);
+    setShowWizard(false);
+    // Disparar generación con el prompt compuesto.
+    await runAction("generate", "full_app", r.composedPrompt);
+  };
+
+  if (showWizard) {
+    return (
+      <div className="h-[calc(100vh-3.5rem)] flex flex-col bg-gradient-to-b from-background via-background to-violet-950/10">
+        <BuilderWizard
+          onCancel={() => nav({ to: "/dashboard" })}
+          onGenerate={handleWizardGenerate}
+          estimatedCost={CREDIT_COSTS.full_app}
+          balance={balance}
+          unlimited={unlimited}
+          loading={loading}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="h-[calc(100vh-3.5rem)] flex flex-col">
