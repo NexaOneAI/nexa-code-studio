@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback } from "react";
 import { CREDIT_COSTS, CreditAction, CREDIT_LABELS } from "@/lib/credit-costs";
 import { toast } from "sonner";
 import { creditsService } from "@/services/credits.service";
-import { subscribeStore } from "@/lib/local-store";
 import { supabaseClient } from "@/integrations/supabase/client";
 
 /**
@@ -25,10 +24,6 @@ export function useCredits() {
 
   useEffect(() => {
     refresh();
-    // Cambios en el store local (modo local).
-    const offLocal = subscribeStore(() => { refresh(); });
-
-    // Realtime Supabase (modo remoto).
     let cleanupRealtime: (() => void) | undefined;
     if (supabaseClient) {
       supabaseClient.auth.getSession().then(({ data }) => {
@@ -54,7 +49,6 @@ export function useCredits() {
     }
 
     return () => {
-      offLocal();
       cleanupRealtime?.();
     };
   }, [refresh]);
