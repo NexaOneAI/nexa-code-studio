@@ -10,8 +10,9 @@ const Panel = RawPanel as any;
 const PanelResizeHandle = Separator as any;
 import { PreviewPane } from "./PreviewPane";
 import { CodeEditor, FileItem } from "./CodeEditor";
-import { exportProjectZip } from "@/lib/exportZip";
-import { Sparkles, Wand2, Bug, Smartphone, Zap, Rocket, Download, Loader2, Send } from "lucide-react";
+import { exportProjectZip, preloadExportZipDeps, isExportZipReady } from "@/lib/exportZip";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { Sparkles, Wand2, Bug, Smartphone, Zap, Rocket, Download, Loader2, Send, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { CREDIT_COSTS, CREDIT_LABELS, CreditAction } from "@/lib/credit-costs";
 import { localStore } from "@/lib/local-store";
@@ -82,6 +83,20 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   const [provider, setProvider] = useState<AIProvider>(() => getDefaultProvider());
   const [model, setModel] = useState<string>(() => AI_PROVIDERS[getDefaultProvider()].defaultModel);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const isOnline = useOnlineStatus();
+  const [exportReady, setExportReady] = useState<boolean>(() => isExportZipReady());
+
+  // Precargar dependencias de exportación (jszip + file-saver) al montar.
+  // Así, si el usuario pierde la conexión más tarde, la exportación
+  // sigue funcionando porque los chunks ya están en cache HTTP.
+  useEffect(() => {
+    if (exportReady) return;
+    let alive = true;
+    preloadExportZipDeps()
+      .then(() => { if (alive) setExportReady(true); })
+      .catch(() => { /* reintentaremos cuando vuelva la conexión */ });
+    return () => { alive = false; };
+  }, [exportReady, isOnline]);
 
   const handleProviderChange = (p: AIProvider) => {
     setProvider(p);
@@ -297,10 +312,24 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       toast.error("Genera una app primero");
       return;
     }
+    if (!exportReady && !isOnline) {
+      toast.error("Sin conexión", {
+        description:
+          "Conéctate a Internet al menos una vez para preparar la exportación. Después podrás descargar el ZIP sin conexión.",
+      });
+      return;
+    }
     const ok = await consume("export_zip");
     if (!ok) return;
-    await exportProjectZip(name, files);
-    toast.success("ZIP descargado");
+    try {
+      await exportProjectZip(name, files);
+      setExportReady(true);
+      toast.success("ZIP descargado");
+    } catch (e: any) {
+      toast.error("No se pudo exportar", {
+        description: e?.message ?? "Error desconocido al generar el ZIP.",
+      });
+    }
   };
 
   return (
@@ -321,8 +350,25 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
           <ActBtn icon={Smartphone} label="Móvil" cost={CREDIT_COSTS.feature_medium} onClick={() => runAction("mobile", "feature_medium", "Optimiza para móvil")} disabled={loading || files.length === 0} />
           <ActBtn icon={Zap} label="Optimizar" cost={CREDIT_COSTS.visual_change} onClick={() => runAction("optimize", "visual_change", "Optimiza rendimiento y accesibilidad")} disabled={loading || files.length === 0} />
           <ActBtn icon={Rocket} label="Netlify" cost={CREDIT_COSTS.visual_change} onClick={() => runAction("netlify", "visual_change", "Prepara para Netlify")} disabled={loading || files.length === 0} />
-          <Button size="sm" onClick={handleExport} disabled={loading || files.length === 0} variant="outline">
-            <Download className="h-3.5 w-3.5 mr-1" /> ZIP <span className="ml-1 text-[10px] opacity-60">{CREDIT_COSTS.export_zip}c</span>
+          <Button
+            size="sm"
+            onClick={handleExport}
+            disabled={loading || files.length === 0 || (!exportReady && !isOnline)}
+            variant="outline"
+            title={
+              !exportReady && !isOnline
+                ? "Sin conexión: conéctate al menos una vez para habilitar la exportación offline"
+                : !isOnline
+                  ? "Modo offline (exportación lista)"
+                  : "Exportar como ZIP"
+            }
+          >
+            {!isOnline ? (
+              <WifiOff className="h-3.5 w-3.5 mr-1" />
+            ) : (
+              <Download className="h-3.5 w-3.5 mr-1" />
+            )}
+            ZIP <span className="ml-1 text-[10px] opacity-60">{CREDIT_COSTS.export_zip}c</span>
           </Button>
         </div>
       </div>

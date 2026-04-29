@@ -36,6 +36,40 @@ const GITIGNORE = `node_modules/
 dist/
 `;
 
+/**
+ * Estado de precarga de las dependencias cliente (jszip + file-saver).
+ * Cuando `loaded === true` la exportación funciona aunque el navegador
+ * pierda la conexión, porque los módulos ya están en memoria/cache HTTP.
+ */
+let preloadPromise: Promise<void> | null = null;
+let preloaded = false;
+
+export function isExportZipReady(): boolean {
+  return preloaded;
+}
+
+/**
+ * Dispara la descarga de los chunks `jszip` y `file-saver` sin ejecutarlos.
+ * Llamar al montar el builder para que la exportación funcione offline
+ * en visitas posteriores (los chunks quedan en HTTP cache del navegador).
+ * Es seguro llamarla muchas veces: comparte la misma promesa.
+ */
+export function preloadExportZipDeps(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  if (preloaded) return Promise.resolve();
+  if (preloadPromise) return preloadPromise;
+  preloadPromise = Promise.all([import("jszip"), import("file-saver")])
+    .then(() => {
+      preloaded = true;
+    })
+    .catch((err) => {
+      // Permitir reintentos si falló (p.ej. offline en la primera visita).
+      preloadPromise = null;
+      throw err;
+    });
+  return preloadPromise;
+}
+
 export async function exportProjectZip(name: string, files: FileItem[]) {
   if (typeof window === "undefined") {
     throw new Error("exportProjectZip solo puede ejecutarse en el navegador");
@@ -43,10 +77,23 @@ export async function exportProjectZip(name: string, files: FileItem[]) {
 
   // Imports dinámicos: evitan que file-saver (CommonJS) y JSZip
   // entren en el bundle SSR de Netlify Functions.
-  const [{ default: JSZip }, { saveAs }] = await Promise.all([
-    import("jszip"),
-    import("file-saver"),
-  ]);
+  // Si están precargados, esto resuelve al instante y funciona offline.
+  let JSZip: any;
+  let saveAs: (blob: Blob, filename: string) => void;
+  try {
+    const [jszipMod, fileSaverMod] = await Promise.all([
+      import("jszip"),
+      import("file-saver"),
+    ]);
+    JSZip = jszipMod.default;
+    saveAs = fileSaverMod.saveAs;
+    preloaded = true;
+  } catch (err) {
+    throw new Error(
+      "No se pudieron cargar las librerías de exportación. " +
+        "Conéctate a Internet al menos una vez para habilitar la descarga offline.",
+    );
+  }
 
   const zip = new JSZip();
   const safeName = name.replace(/[^a-z0-9-_]/gi, "_") || "nexa-app";
