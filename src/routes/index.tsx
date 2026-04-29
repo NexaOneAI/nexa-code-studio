@@ -6,8 +6,8 @@ import { Logo } from "@/components/Logo";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Nexa One Builder — Crea apps web con IA en minutos" },
-      { name: "description", content: "Construye apps reales con IA, edita el código, ve la vista previa en vivo y exporta a ZIP listo para Netlify." },
+      { title: "Nexa One Builder — Web Apps, PWA y Play Store con IA" },
+      { name: "description", content: "Crea apps web, PWA y proyectos listos para Play Store con IA. Vista previa en vivo, editor y export ZIP listo para Netlify y PWA Builder." },
     ],
   }),
   component: Landing,
@@ -27,22 +27,25 @@ function Landing() {
 
       <main className="container relative mx-auto px-4 py-20 text-center">
         <div className="inline-flex items-center gap-2 rounded-full glass-card neon-border px-4 py-1.5 text-xs text-muted-foreground">
-          <Sparkles className="h-3 w-3 text-[color:var(--neon-cyan)]" /> IA · Preview en vivo · Export Netlify
+          <Sparkles className="h-3 w-3 text-[color:var(--neon-cyan)]" /> IA · Web Apps · PWA · Play Store Ready
         </div>
         <h1 className="mt-6 text-5xl font-bold tracking-tight md:text-7xl">
-          Crea apps web <span className="text-gradient">con IA</span><br/>en minutos.
+          Crea apps web, <span className="text-gradient">PWA</span> y proyectos<br/>listos para Play Store con IA.
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-          Describe lo que quieres construir. Nexa One genera el código, lo previsualiza en vivo y lo deja listo para deploy.
+          Describe tu idea, elige el tipo de app y Nexa One genera el proyecto, la vista previa y los archivos listos para publicar en web, PWA o Play Store vía PWA Builder.
         </p>
         <div className="mt-10 flex flex-wrap justify-center gap-3">
           <Button asChild size="lg" className="bg-gradient-primary border-0 shadow-glow">
-            <Link to="/builder">Crear mi primera app — 25 créditos gratis <ArrowRight className="ml-2 h-4 w-4" /></Link>
+            <Link to="/builder">Crear app lista para publicar — 25 créditos gratis <ArrowRight className="ml-2 h-4 w-4" /></Link>
           </Button>
           <Button asChild size="lg" variant="outline" className="border-[color:var(--neon-violet)]/40 hover:border-[color:var(--neon-cyan)] hover:text-[color:var(--neon-cyan)] bg-transparent">
-            <Link to="/dashboard">Ver dashboard</Link>
+            <Link to="/builder">Explorar builder</Link>
           </Button>
         </div>
+        <p className="mt-4 text-xs text-muted-foreground">
+          Exporta ZIP, publica en Netlify y conviértela en app Android con PWA Builder.
+        </p>
 
         <div className="mt-24 grid gap-6 md:grid-cols-3">
           {[
