@@ -1,5 +1,3 @@
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
 import type { FileItem } from "@/components/builder/CodeEditor";
 
 const NETLIFY_TOML = `# Configuración de despliegue para Netlify
@@ -39,6 +37,17 @@ dist/
 `;
 
 export async function exportProjectZip(name: string, files: FileItem[]) {
+  if (typeof window === "undefined") {
+    throw new Error("exportProjectZip solo puede ejecutarse en el navegador");
+  }
+
+  // Imports dinámicos: evitan que file-saver (CommonJS) y JSZip
+  // entren en el bundle SSR de Netlify Functions.
+  const [{ default: JSZip }, { saveAs }] = await Promise.all([
+    import("jszip"),
+    import("file-saver"),
+  ]);
+
   const zip = new JSZip();
   const safeName = name.replace(/[^a-z0-9-_]/gi, "_") || "nexa-app";
 
