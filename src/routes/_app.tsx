@@ -1,10 +1,9 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { SupabaseStatusBanner } from "@/components/SupabaseStatusBanner";
 import { useEffect, useState } from "react";
 import { supabaseClient, isSupabaseConfigured } from "@/integrations/supabase/client";
-import { useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/_app")({
