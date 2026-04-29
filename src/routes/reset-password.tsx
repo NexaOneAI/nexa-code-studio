@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/Logo";
 import { toast } from "sonner";
+import { Eye, EyeOff } from "lucide-react";
 
 export const Route = createFileRoute("/reset-password")({
   head: () => ({ meta: [{ title: "Recuperar contraseña — Nexa One" }] }),
@@ -17,6 +18,7 @@ function ResetPage() {
   const [email, setEmail] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPwd, setShowPwd] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.hash.includes("type=recovery")) setRecoveryMode(true);
@@ -51,7 +53,25 @@ function ResetPage() {
             <form onSubmit={updatePwd} className="mt-6 space-y-4">
               <div>
                 <Label htmlFor="np">Nueva contraseña</Label>
-                <Input id="np" type="password" required minLength={6} value={newPwd} onChange={(e) => setNewPwd(e.target.value)} />
+                <div className="relative">
+                  <Input
+                    id="np"
+                    type={showPwd ? "text" : "password"}
+                    required
+                    minLength={6}
+                    value={newPwd}
+                    onChange={(e) => setNewPwd(e.target.value)}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPwd((v) => !v)}
+                    aria-label={showPwd ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    className="absolute inset-y-0 right-2 flex items-center text-muted-foreground hover:text-foreground"
+                  >
+                    {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <Button disabled={loading} className="w-full bg-gradient-primary border-0">Actualizar</Button>
             </form>
