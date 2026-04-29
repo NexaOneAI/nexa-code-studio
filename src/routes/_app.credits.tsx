@@ -9,6 +9,7 @@ import { creditsService } from "@/services/credits.service";
 import { supabaseClient } from "@/integrations/supabase/client";
 import { CREDIT_PLAN_LIST, type CreditPlanId } from "@/lib/credit-plans";
 import { createMercadoPagoPreference } from "@/server/mercadoPago.functions";
+import { authedHeaders } from "@/lib/auth-headers";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 export const Route = createFileRoute("/_app/credits")({
@@ -46,7 +47,10 @@ function CreditsPage() {
     }
     setBuyingPlan(planId);
     try {
-      const res = await createMercadoPagoPreference({ data: { plan_id: planId } });
+      const res = await createMercadoPagoPreference({
+        headers: await authedHeaders(),
+        data: { plan_id: planId },
+      });
       if (res?.payment_url) {
         window.location.href = res.payment_url;
       } else {
