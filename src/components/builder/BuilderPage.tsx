@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { CREDIT_COSTS, CREDIT_LABELS, CreditAction } from "@/lib/credit-costs";
 import { projectsService } from "@/services/projects.service";
 import { generateAI } from "@/server/generateAI.functions";
+import { authedHeaders } from "@/lib/auth-headers";
 import {
   AI_PROVIDERS,
   PROVIDER_LIST,
@@ -178,6 +179,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         setLoadingStage("Generando código con IA…");
         // Punto único centralizado: créditos + proveedor + fallback + registro.
         const resp = await generateAI({
+          headers: await authedHeaders(),
           data: {
             provider,
             model: getModel(provider, model),
