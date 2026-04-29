@@ -1,5 +1,5 @@
-import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Sparkles, FolderKanban, CreditCard, RotateCcw, ShieldCheck } from "lucide-react";
+import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
+import { LayoutDashboard, Sparkles, FolderKanban, CreditCard, LogOut, ShieldCheck } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter, useSidebar,
@@ -10,8 +10,8 @@ import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { Badge } from "./ui/badge";
 import { Shield } from "lucide-react";
 import { Button } from "./ui/button";
-import { localStore } from "@/lib/local-store";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 const items = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -26,6 +26,8 @@ export function AppSidebar() {
   const path = useRouterState({ select: (r) => r.location.pathname });
   const { balance, unlimited } = useCredits();
   const { isAdmin } = useIsAdmin();
+  const { signOut } = useAuth();
+  const nav = useNavigate();
   const showUnlimited = unlimited || isAdmin;
   const navItems = isAdmin
     ? [...items, { title: "Admin", url: "/admin", icon: ShieldCheck }]
@@ -87,15 +89,14 @@ export function AppSidebar() {
           variant="ghost"
           size="sm"
           className="w-full justify-start hover:bg-sidebar-accent/60 hover:text-[color:var(--neon-cyan)]"
-          onClick={() => {
-            if (confirm("¿Reiniciar todos los datos locales (proyectos, créditos, historial)?")) {
-              localStore.reset();
-              toast.success("Datos locales reiniciados");
-            }
+          onClick={async () => {
+            await signOut();
+            toast.success("Sesión cerrada");
+            nav({ to: "/login" });
           }}
         >
-          <RotateCcw className="h-4 w-4" />
-          {!collapsed && <span className="ml-2">Reiniciar demo</span>}
+          <LogOut className="h-4 w-4" />
+          {!collapsed && <span className="ml-2">Cerrar sesión</span>}
         </Button>
       </SidebarFooter>
     </Sidebar>
