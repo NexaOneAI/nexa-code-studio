@@ -15,11 +15,8 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { Sparkles, Wand2, Bug, Smartphone, Zap, Rocket, Download, Loader2, Send, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { CREDIT_COSTS, CREDIT_LABELS, CreditAction } from "@/lib/credit-costs";
-import { localStore } from "@/lib/local-store";
 import { projectsService } from "@/services/projects.service";
-import { generateLocal } from "@/lib/local-generator";
 import { generateAI } from "@/server/generateAI.functions";
-import { creditsService } from "@/services/credits.service";
 import {
   AI_PROVIDERS,
   PROVIDER_LIST,
@@ -167,7 +164,6 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
     setMessages((m) => [...m, { role: "user", content: finalPrompt || `Acción: ${mode}` }]);
 
     try {
-      const useRemote = await creditsService.isLocal().then((local) => !local);
       const currentHtml = files.find((f) => f.path === "index.html")?.content;
 
       let result: {
@@ -178,7 +174,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         model: string;
       };
 
-      if (useRemote) {
+      {
         setLoadingStage("Generando código con IA…");
         // Punto único centralizado: créditos + proveedor + fallback + registro.
         const resp = await generateAI({
@@ -236,32 +232,6 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
           },
         ]);
         await refresh();
-      } else {
-        // Modo local: descuenta vía store local + generador de plantillas.
-        const ok = await consume(action);
-        if (!ok) return;
-        setLoadingStage("Construyendo plantilla…");
-        await new Promise((r) => setTimeout(r, 250));
-        const local = generateLocal(finalPrompt || mode, mode, currentHtml);
-        result = { ...local, files: validateGeneratedFiles(local.files) };
-        localStore.recordGeneration({
-          project_id: currentProjectId ?? "local",
-          prompt: finalPrompt,
-          response_summary: result.description,
-          cost,
-          model: result.model,
-        });
-        setMessages((m) => [
-          ...m,
-          {
-            role: "ai",
-            content: `✅ ${result.description}${
-              result.suggestions.length
-                ? "\n\n**Sugerencias:**\n" + result.suggestions.map((s) => `• ${s}`).join("\n")
-                : ""
-            }`,
-          },
-        ]);
       }
 
       setLoadingStage("Actualizando vista previa…");
