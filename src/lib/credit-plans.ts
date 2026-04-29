@@ -35,7 +35,7 @@ export const CREDIT_PLANS: Record<CreditPlanId, CreditPlan> = {
   ultra: {
     id: "ultra",
     name: "Ultra",
-    credits: 400,
+    credits: 350,
     price: 799,
     currency: "MXN",
     description: "Máxima capacidad creativa",
