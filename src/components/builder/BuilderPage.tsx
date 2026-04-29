@@ -31,6 +31,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { BuilderWizard, type WizardResult } from "./wizard/BuilderWizard";
+import { PublishPanel } from "./PublishPanel";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 interface Msg { role: "user" | "ai"; content: string; provider?: AIProvider; model?: string; }
 
@@ -88,6 +90,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   const [exportReady, setExportReady] = useState<boolean>(() => isExportZipReady());
   // Wizard visible cuando es un proyecto nuevo y aún no se ha generado nada.
   const [showWizard, setShowWizard] = useState<boolean>(() => !projectId);
+  const [publishOpen, setPublishOpen] = useState(false);
 
   // Precargar dependencias de exportación (jszip + file-saver) al montar.
   // Así, si el usuario pierde la conexión más tarde, la exportación
@@ -397,6 +400,15 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
             )}
             ZIP <span className="ml-1 text-[10px] opacity-60">{CREDIT_COSTS.export_zip}c</span>
           </Button>
+          <Button
+            size="sm"
+            onClick={() => setPublishOpen(true)}
+            disabled={files.length === 0}
+            className="h-8 bg-gradient-to-r from-violet-500 to-cyan-500 border-0 text-white shadow-[0_0_18px_-6px_hsl(var(--primary)/0.8)]"
+          >
+            <Rocket className="h-3.5 w-3.5 mr-1" />
+            Publicar
+          </Button>
         </div>
       </div>
 
@@ -467,6 +479,17 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
           <CodeEditor files={files} onChange={handleFileChange} onSave={handleSave} />
         </Panel>
       </PanelGroup>
+      <Sheet open={publishOpen} onOpenChange={setPublishOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-3xl p-0 border-l border-border bg-background">
+          <SheetTitle className="sr-only">Publicar app</SheetTitle>
+          <PublishPanel
+            name={name}
+            files={files}
+            isOnline={isOnline}
+            onConsumeExportCredit={() => consume("export_zip")}
+          />
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
