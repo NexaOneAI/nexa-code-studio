@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Cloud,
   Smartphone,
@@ -14,11 +13,15 @@ import {
   Check,
   Rocket,
   ChevronRight,
+  ChevronLeft,
   Loader2,
   Globe,
   Sparkles,
+  PartyPopper,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "@tanstack/react-router";
 import type { FileItem } from "./CodeEditor";
 import {
   exportProjectZip,
@@ -39,6 +42,15 @@ interface Props {
 
 type Busy = null | "zip" | "pwa" | "manifest" | "icons";
 
+const STEPS = [
+  { id: 1, label: "Generar", icon: Sparkles },
+  { id: 2, label: "Descargar ZIP", icon: Download },
+  { id: 3, label: "Subir a Netlify", icon: Cloud },
+  { id: 4, label: "PWA Builder", icon: Globe },
+  { id: 5, label: "APK / AAB", icon: Package },
+  { id: 6, label: "Play Store", icon: Smartphone },
+];
+
 export function PublishPanel({
   name,
   files,
@@ -46,26 +58,40 @@ export function PublishPanel({
   onConsumeExportCredit,
   isOnline,
 }: Props) {
+  const [step, setStep] = useState(2);
+  const [done, setDone] = useState<Record<number, boolean>>({ 1: true });
   const [netlifyUrl, setNetlifyUrl] = useState("");
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<Busy>(null);
 
   const empty = files.length === 0;
   const exportReady = isExportZipReady();
+  const hasUrl = /^https?:\/\/.+/i.test(netlifyUrl.trim());
+  const allDone = done[2] && done[3] && done[4] && done[5];
+
+  const markDone = (n: number) => setDone((d) => ({ ...d, [n]: true }));
+
+  const guardOnline = () => {
+    if (!exportReady && !isOnline) {
+      toast.error("Sin conexión", {
+        description: "Conéctate al menos una vez para preparar la exportación.",
+      });
+      return false;
+    }
+    return true;
+  };
 
   const handleZip = async () => {
     if (empty) return toast.error("Genera la app primero");
-    if (!exportReady && !isOnline) {
-      return toast.error("Sin conexión", {
-        description: "Conéctate al menos una vez para preparar la exportación.",
-      });
-    }
+    if (!guardOnline()) return;
     const ok = await onConsumeExportCredit();
     if (!ok) return;
     setBusy("zip");
     try {
       await exportProjectZip(name, files);
-      toast.success("ZIP web descargado");
+      toast.success("✓ ZIP descargado");
+      markDone(2);
+      setStep(3);
     } catch (e: any) {
       toast.error("Error al exportar", { description: e?.message });
     } finally {
@@ -75,19 +101,14 @@ export function PublishPanel({
 
   const handlePwaZip = async () => {
     if (empty) return toast.error("Genera la app primero");
-    if (!exportReady && !isOnline) {
-      return toast.error("Sin conexión", {
-        description: "Conéctate al menos una vez para preparar la exportación.",
-      });
-    }
+    if (!guardOnline()) return;
     const ok = await onConsumeExportCredit();
     if (!ok) return;
     setBusy("pwa");
     try {
       await exportPwaZip(name, files, { name, themeColor });
-      toast.success("PWA lista descargada", {
-        description: "Súbela a Netlify y úsala en PWA Builder.",
-      });
+      toast.success("✓ PWA descargada");
+      markDone(2);
     } catch (e: any) {
       toast.error("Error al exportar PWA", { description: e?.message });
     } finally {
@@ -124,197 +145,278 @@ export function PublishPanel({
     try {
       await navigator.clipboard.writeText(netlifyUrl);
       setCopied(true);
+      toast.success("URL copiada");
       setTimeout(() => setCopied(false), 1500);
     } catch {}
   };
 
+  const openNetlify = () => {
+    window.open("https://app.netlify.com/drop", "_blank", "noopener,noreferrer");
+    markDone(3);
+    if (hasUrl) setStep(4);
+  };
+
+  const openPwaBuilder = () => {
+    if (!hasUrl) return toast.error("Pega tu URL de Netlify primero");
+    const url = `https://www.pwabuilder.com/reportcard?site=${encodeURIComponent(netlifyUrl)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+    markDone(4);
+    setStep(5);
+  };
+
+  const goPlayConsole = () => {
+    window.open("https://play.google.com/console", "_blank", "noopener,noreferrer");
+    markDone(5);
+    markDone(6);
+  };
+
+  const progress = useMemo(() => {
+    const completed = STEPS.filter((s) => done[s.id]).length;
+    return Math.round((completed / STEPS.length) * 100);
+  }, [done]);
+
   return (
     <div className="h-full overflow-auto bg-gradient-to-b from-background via-background to-violet-950/10">
-      <div className="mx-auto max-w-4xl p-6 md:p-8 space-y-6">
+      <div className="mx-auto max-w-4xl p-6 md:p-10 space-y-8">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 grid place-items-center shadow-[0_0_24px_-4px_hsl(var(--primary)/0.7)]">
+          <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 grid place-items-center shadow-[0_0_30px_-4px_hsl(var(--primary)/0.7)]">
             <Rocket className="h-5 w-5 text-white" />
           </div>
           <div>
             <h2 className="text-xl font-semibold">Publicar tu app</h2>
             <p className="text-xs text-muted-foreground">
-              Tres caminos: web, PWA o Play Store. Elige el que prefieras.
+              Sigue los pasos. Sin conocimientos técnicos.
             </p>
+          </div>
+          <div className="ml-auto text-right">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Progreso</div>
+            <div className="text-sm font-semibold text-primary">{progress}%</div>
           </div>
         </div>
 
-        {/* Top: Netlify + Play Store */}
-        <div className="grid md:grid-cols-2 gap-4">
-          {/* Netlify */}
-          <Card
-            icon={<Cloud className="h-5 w-5" />}
-            title="Publicar en Netlify"
-            subtitle="Sitio público en 1 minuto"
-            accent="from-cyan-500/20 to-sky-500/5 border-cyan-500/40"
-          >
-            <ol className="text-xs text-muted-foreground space-y-2 mb-4 pl-1">
-              <Step n={1}>Descarga el ZIP web</Step>
-              <Step n={2}>
-                Ve a{" "}
-                <a
-                  href="https://app.netlify.com/drop"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  Netlify Drop <ExternalLink className="h-3 w-3" />
-                </a>
-              </Step>
-              <Step n={3}>Arrastra la carpeta descomprimida</Step>
-            </ol>
-            <div className="flex flex-col gap-2">
+        {/* Stepper */}
+        <Stepper steps={STEPS} current={step} done={done} onSelect={setStep} />
+
+        {/* Step content */}
+        <div className="rounded-2xl border border-border/60 bg-card/40 backdrop-blur-sm p-6 md:p-8 min-h-[320px] shadow-[0_0_40px_-20px_hsl(var(--primary)/0.5)]">
+          {step === 1 && (
+            <StepShell
+              title="Tu app está generada"
+              desc="Listo para empaquetar y publicar."
+              icon={<Sparkles className="h-6 w-6" />}
+              accent="from-violet-500/20 to-fuchsia-500/5"
+            >
               <Button
-                onClick={handleZip}
-                disabled={!!busy || empty}
-                className="w-full bg-gradient-to-r from-cyan-500 to-sky-500 border-0 text-white"
+                onClick={() => setStep(2)}
+                className="bg-gradient-to-r from-violet-500 to-fuchsia-500 border-0"
               >
-                {busy === "zip" ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <Download className="h-4 w-4 mr-2" />
-                )}
-                Descargar ZIP Web
-                <span className="ml-auto text-[10px] opacity-70">
-                  {CREDIT_COSTS.export_zip}c
-                </span>
+                Continuar <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
-              <a
-                href="https://app.netlify.com/drop"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex w-full items-center justify-center h-9 rounded-md border border-border bg-background/40 text-xs hover:border-primary/40 transition"
-              >
-                Abrir Netlify Drop <ExternalLink className="h-3 w-3 ml-1.5" />
-              </a>
-            </div>
+            </StepShell>
+          )}
 
-            <div className="mt-4 space-y-1.5">
-              <label className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                URL pública (cuando la tengas)
-              </label>
-              <div className="flex gap-1.5">
-                <Input
-                  value={netlifyUrl}
-                  onChange={(e) => setNetlifyUrl(e.target.value)}
-                  placeholder="https://mi-app.netlify.app"
-                  className="h-9 text-xs bg-background/60"
+          {step === 2 && (
+            <StepShell
+              title="Descarga el paquete de tu app"
+              desc="Elige web (Netlify) o PWA lista (recomendado para Play Store)."
+              icon={<Download className="h-6 w-6" />}
+              accent="from-cyan-500/20 to-sky-500/5"
+            >
+              <div className="grid sm:grid-cols-2 gap-3">
+                <BigBtn
+                  primary
+                  onClick={handleZip}
+                  disabled={!!busy || empty}
+                  loading={busy === "zip"}
+                  icon={<Globe className="h-4 w-4" />}
+                  label="ZIP Web"
+                  hint={`${CREDIT_COSTS.export_zip} créditos · para Netlify`}
                 />
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="h-9 w-9 shrink-0"
-                  onClick={copyUrl}
-                  disabled={!netlifyUrl}
-                  title="Copiar URL"
-                >
-                  {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                </Button>
+                <BigBtn
+                  onClick={handlePwaZip}
+                  disabled={!!busy || empty}
+                  loading={busy === "pwa"}
+                  icon={<Package className="h-4 w-4" />}
+                  label="PWA lista"
+                  hint={`${CREDIT_COSTS.export_zip} créditos · manifest + íconos`}
+                />
               </div>
-            </div>
-          </Card>
+              {empty && (
+                <p className="text-xs text-amber-300 mt-4">Genera tu app primero.</p>
+              )}
+            </StepShell>
+          )}
 
-          {/* Play Store */}
-          <Card
-            icon={<Smartphone className="h-5 w-5" />}
-            title="Convertir a App (Play Store)"
-            subtitle="PWA Builder genera tu APK / AAB"
-            accent="from-emerald-500/20 to-teal-500/5 border-emerald-500/40"
-          >
-            <ol className="space-y-2.5 text-xs">
-              <Phase n={1} done={!!netlifyUrl} title="Tener la app en Netlify">
-                Publica primero (panel izquierdo) y pega aquí la URL.
-              </Phase>
-              <Phase n={2} done={false} title="Abrir PWA Builder">
-                <a
-                  href="https://www.pwabuilder.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-primary hover:underline"
-                >
-                  pwabuilder.com <ExternalLink className="h-3 w-3" />
-                </a>
-              </Phase>
-              <Phase n={3} done={false} title="Pegar tu URL de Netlify">
-                PWA Builder analizará tu app automáticamente.
-              </Phase>
-              <Phase n={4} done={false} title="Descargar APK / AAB">
-                Click en <em>Package For Stores → Android</em>.
-              </Phase>
-              <Phase n={5} done={false} title="Subir a Play Console">
-                <a
-                  href="https://play.google.com/console"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-primary hover:underline"
-                >
-                  play.google.com/console <ExternalLink className="h-3 w-3" />
-                </a>
-              </Phase>
-            </ol>
-
-            <div className="mt-4 space-y-2">
+          {step === 3 && (
+            <StepShell
+              title="Sube tu app a Netlify"
+              desc="Arrastra la carpeta descomprimida en Netlify Drop. Es gratis."
+              icon={<Cloud className="h-6 w-6" />}
+              accent="from-cyan-500/20 to-sky-500/5"
+              locked={!done[2]}
+              lockedMsg="Descarga el ZIP primero (paso 2)."
+            >
+              <ol className="text-sm text-muted-foreground space-y-2 mb-5">
+                <NumLi n={1}>Descomprime el ZIP descargado.</NumLi>
+                <NumLi n={2}>Abre Netlify Drop.</NumLi>
+                <NumLi n={3}>Arrastra la carpeta. Copia la URL pública.</NumLi>
+              </ol>
               <Button
-                onClick={() => {
-                  const url = netlifyUrl
-                    ? `https://www.pwabuilder.com/reportcard?site=${encodeURIComponent(netlifyUrl)}`
-                    : "https://www.pwabuilder.com";
-                  window.open(url, "_blank", "noopener,noreferrer");
-                }}
-                className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 border-0 text-white"
+                onClick={openNetlify}
+                className="bg-gradient-to-r from-cyan-500 to-sky-500 border-0 mb-4"
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Abrir Netlify Drop
+              </Button>
+              <div className="space-y-1.5">
+                <label className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                  Pega aquí tu URL de Netlify
+                </label>
+                <div className="flex gap-1.5">
+                  <Input
+                    value={netlifyUrl}
+                    onChange={(e) => setNetlifyUrl(e.target.value)}
+                    placeholder="https://mi-app.netlify.app"
+                    className="h-10 text-sm bg-background/60"
+                  />
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-10 w-10 shrink-0"
+                    onClick={copyUrl}
+                    disabled={!netlifyUrl}
+                    title="Copiar URL"
+                  >
+                    {copied ? (
+                      <Check className="h-4 w-4 text-emerald-400" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                {hasUrl && (
+                  <button
+                    onClick={() => {
+                      markDone(3);
+                      setStep(4);
+                    }}
+                    className="mt-3 inline-flex items-center text-xs text-emerald-300 hover:underline"
+                  >
+                    URL detectada · continuar al paso 4
+                    <ChevronRight className="h-3 w-3 ml-0.5" />
+                  </button>
+                )}
+              </div>
+            </StepShell>
+          )}
+
+          {step === 4 && (
+            <StepShell
+              title="Convierte tu web en app móvil"
+              desc="PWA Builder analizará tu URL y generará el paquete Android."
+              icon={<Globe className="h-6 w-6" />}
+              accent="from-emerald-500/20 to-teal-500/5"
+              locked={!hasUrl}
+              lockedMsg="Pega tu URL de Netlify en el paso 3."
+            >
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 mb-5 text-xs text-emerald-100/90">
+                URL detectada: <span className="font-mono text-emerald-300">{netlifyUrl}</span>
+              </div>
+              <Button
+                onClick={openPwaBuilder}
+                disabled={!hasUrl}
+                className="bg-gradient-to-r from-emerald-500 to-teal-500 border-0"
               >
                 <Sparkles className="h-4 w-4 mr-2" />
                 Abrir en PWA Builder
-                <ChevronRight className="h-4 w-4 ml-auto" />
+                <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
+            </StepShell>
+          )}
+
+          {step === 5 && (
+            <PlayStoreCard
+              onContinue={() => {
+                markDone(5);
+                setStep(6);
+              }}
+            />
+          )}
+
+          {step === 6 && (
+            <StepShell
+              title="Sube tu APK / AAB a Play Console"
+              desc="Crea tu ficha de Play Store y carga el archivo descargado."
+              icon={<Smartphone className="h-6 w-6" />}
+              accent="from-fuchsia-500/20 to-violet-500/5"
+            >
+              <ol className="text-sm text-muted-foreground space-y-2 mb-5">
+                <NumLi n={1}>Entra a Google Play Console (cuenta de dev).</NumLi>
+                <NumLi n={2}>Crea una nueva aplicación.</NumLi>
+                <NumLi n={3}>Sube el APK / AAB de PWA Builder.</NumLi>
+                <NumLi n={4}>Completa ficha (icono, capturas, descripción).</NumLi>
+              </ol>
               <Button
-                onClick={handlePwaZip}
-                disabled={!!busy || empty}
-                variant="outline"
-                className="w-full border-emerald-500/40 hover:bg-emerald-500/10"
+                onClick={goPlayConsole}
+                className="bg-gradient-to-r from-fuchsia-500 to-violet-500 border-0"
               >
-                {busy === "pwa" ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <Package className="h-4 w-4 mr-2" />
-                )}
-                Descargar PWA lista
-                <span className="ml-auto text-[10px] opacity-70">
-                  {CREDIT_COSTS.export_zip}c
-                </span>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Abrir Play Console
               </Button>
-            </div>
-          </Card>
+            </StepShell>
+          )}
+
+          {/* Step nav */}
+          <div className="flex items-center justify-between mt-8 pt-5 border-t border-border/40">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setStep((s) => Math.max(1, s - 1))}
+              disabled={step === 1}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" /> Anterior
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Paso {step} de {STEPS.length}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setStep((s) => Math.min(STEPS.length, s + 1))}
+              disabled={step === STEPS.length}
+            >
+              Siguiente <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
         </div>
 
-        {/* Exportaciones rápidas */}
+        {/* Final CTA */}
+        {allDone && (
+          <div className="rounded-2xl border border-emerald-500/40 bg-gradient-to-br from-emerald-500/15 to-teal-500/5 p-6 text-center animate-in fade-in slide-in-from-bottom-2">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20 mb-3">
+              <PartyPopper className="h-6 w-6 text-emerald-300" />
+            </div>
+            <h3 className="text-lg font-semibold">🔥 Tu app ya está lista para Play Store</h3>
+            <p className="text-sm text-muted-foreground mt-1 mb-4">
+              Excelente trabajo. ¿Listo para crear otra?
+            </p>
+            <Link to="/dashboard">
+              <Button className="bg-gradient-to-r from-violet-500 to-cyan-500 border-0">
+                <Plus className="h-4 w-4 mr-2" />
+                Crear otra app
+              </Button>
+            </Link>
+          </div>
+        )}
+
+        {/* Quick exports */}
         <div>
-          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-            <Download className="h-4 w-4 text-primary" />
-            Exportaciones rápidas
+          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-muted-foreground">
+            <Download className="h-4 w-4" />
+            Exportaciones extra
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <MiniAction
-              icon={<Globe className="h-4 w-4" />}
-              label="ZIP Web"
-              hint="HTML + Netlify"
-              onClick={handleZip}
-              loading={busy === "zip"}
-              disabled={empty}
-            />
-            <MiniAction
-              icon={<Package className="h-4 w-4" />}
-              label="PWA lista"
-              hint="Manifest + SW + íconos"
-              onClick={handlePwaZip}
-              loading={busy === "pwa"}
-              disabled={empty}
-            />
             <MiniAction
               icon={<FileJson className="h-4 w-4" />}
               label="Manifest"
@@ -331,54 +433,175 @@ export function PublishPanel({
               loading={busy === "icons"}
               disabled={false}
             />
+            <MiniAction
+              icon={<Globe className="h-4 w-4" />}
+              label="ZIP Web"
+              hint="Solo HTML"
+              onClick={handleZip}
+              loading={busy === "zip"}
+              disabled={empty}
+            />
+            <MiniAction
+              icon={<Package className="h-4 w-4" />}
+              label="PWA lista"
+              hint="Todo en uno"
+              onClick={handlePwaZip}
+              loading={busy === "pwa"}
+              disabled={empty}
+            />
           </div>
         </div>
-
-        {empty && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-amber-200">
-            Genera tu app primero para activar las exportaciones.
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
-function Card({
-  icon,
+/* ---------- subcomponents ---------- */
+
+function Stepper({
+  steps,
+  current,
+  done,
+  onSelect,
+}: {
+  steps: typeof STEPS;
+  current: number;
+  done: Record<number, boolean>;
+  onSelect: (n: number) => void;
+}) {
+  return (
+    <div className="relative">
+      <div className="absolute top-5 left-0 right-0 h-px bg-border/60" />
+      <div
+        className="absolute top-5 left-0 h-px bg-gradient-to-r from-violet-500 to-cyan-500 transition-all"
+        style={{
+          width: `${((Math.max(...Object.keys(done).map(Number).filter((k) => done[k])) || 1) / steps.length) * 100}%`,
+        }}
+      />
+      <ol className="relative grid grid-cols-6 gap-1">
+        {steps.map((s) => {
+          const isDone = done[s.id];
+          const isActive = current === s.id;
+          const Icon = s.icon;
+          return (
+            <li key={s.id} className="flex flex-col items-center">
+              <button
+                onClick={() => onSelect(s.id)}
+                className={`relative h-10 w-10 rounded-full grid place-items-center border-2 transition-all ${
+                  isDone
+                    ? "bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-[0_0_18px_-4px_rgba(16,185,129,0.6)]"
+                    : isActive
+                    ? "bg-gradient-to-br from-violet-500 to-cyan-500 border-transparent text-white shadow-[0_0_22px_-4px_hsl(var(--primary)/0.8)]"
+                    : "bg-background border-border text-muted-foreground hover:border-primary/40"
+                }`}
+              >
+                {isDone ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+              </button>
+              <span
+                className={`mt-2 text-[10px] md:text-[11px] text-center leading-tight ${
+                  isActive ? "text-foreground font-medium" : "text-muted-foreground"
+                }`}
+              >
+                {s.label}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+function StepShell({
   title,
-  subtitle,
+  desc,
+  icon,
   accent,
+  locked,
+  lockedMsg,
   children,
 }: {
-  icon: React.ReactNode;
   title: string;
-  subtitle: string;
+  desc: string;
+  icon: React.ReactNode;
   accent: string;
+  locked?: boolean;
+  lockedMsg?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div
-      className={`rounded-2xl border bg-gradient-to-br ${accent} p-5 backdrop-blur-sm transition hover:shadow-[0_0_30px_-10px_hsl(var(--primary)/0.5)]`}
-    >
-      <div className="flex items-start gap-3 mb-4">
-        <div className="h-10 w-10 rounded-xl bg-background/50 border border-border/60 grid place-items-center text-primary">
+    <div>
+      <div className="flex items-start gap-4 mb-6">
+        <div
+          className={`h-12 w-12 rounded-xl bg-gradient-to-br ${accent} border border-border/60 grid place-items-center text-primary`}
+        >
           {icon}
         </div>
         <div>
-          <h3 className="font-semibold text-sm">{title}</h3>
-          <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <p className="text-sm text-muted-foreground">{desc}</p>
         </div>
       </div>
-      {children}
+      {locked ? (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-amber-200">
+          {lockedMsg || "Completa el paso anterior para continuar."}
+        </div>
+      ) : (
+        children
+      )}
     </div>
   );
 }
 
-function Step({ n, children }: { n: number; children: React.ReactNode }) {
+function PlayStoreCard({ onContinue }: { onContinue: () => void }) {
   return (
-    <li className="flex items-start gap-2">
-      <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary text-[9px] font-bold">
+    <div>
+      <div className="grid md:grid-cols-2 gap-6 items-center">
+        {/* Mockup */}
+        <div className="relative">
+          <div className="mx-auto w-44 h-80 rounded-[2rem] border-4 border-border bg-gradient-to-br from-violet-900/40 via-background to-cyan-900/30 shadow-[0_0_40px_-10px_hsl(var(--primary)/0.6)] relative overflow-hidden">
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 w-16 h-1.5 rounded-full bg-border/80" />
+            <div className="absolute inset-x-4 top-8 bottom-8 rounded-2xl bg-gradient-to-br from-violet-500/30 to-cyan-500/20 grid place-items-center">
+              <Smartphone className="h-12 w-12 text-white/80" />
+            </div>
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-12 h-1 rounded-full bg-border/80" />
+          </div>
+          <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-violet-500/20 to-cyan-500/10 blur-2xl -z-10" />
+        </div>
+
+        <div>
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-[10px] text-emerald-200 mb-3">
+            <Smartphone className="h-3 w-3" /> Paso final técnico
+          </div>
+          <h3 className="text-2xl font-bold mb-2">Convierte tu app en APK</h3>
+          <p className="text-sm text-muted-foreground mb-5">
+            En PWA Builder, dale clic a <strong className="text-foreground">Package For Stores → Android</strong>.
+            Te dará un archivo <strong className="text-foreground">.aab</strong> listo para subir a Play Store.
+          </p>
+          <ul className="text-xs text-muted-foreground space-y-1.5 mb-6">
+            <li className="flex items-center gap-2"><Check className="h-3 w-3 text-emerald-400" /> Sin Android Studio</li>
+            <li className="flex items-center gap-2"><Check className="h-3 w-3 text-emerald-400" /> Sin programar nada</li>
+            <li className="flex items-center gap-2"><Check className="h-3 w-3 text-emerald-400" /> Listo en minutos</li>
+          </ul>
+          <Button
+            onClick={onContinue}
+            size="lg"
+            className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 border-0 text-white font-semibold shadow-[0_0_30px_-6px_rgba(16,185,129,0.6)]"
+          >
+            <Package className="h-5 w-5 mr-2" />
+            Ya descargué mi APK / AAB
+            <ChevronRight className="h-4 w-4 ml-2" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NumLi({ n, children }: { n: number; children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-2.5">
+      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary text-[10px] font-bold mt-0.5">
         {n}
       </span>
       <span>{children}</span>
@@ -386,33 +609,39 @@ function Step({ n, children }: { n: number; children: React.ReactNode }) {
   );
 }
 
-function Phase({
-  n,
-  done,
-  title,
-  children,
+function BigBtn({
+  primary,
+  onClick,
+  disabled,
+  loading,
+  icon,
+  label,
+  hint,
 }: {
-  n: number;
-  done: boolean;
-  title: string;
-  children: React.ReactNode;
+  primary?: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+  icon: React.ReactNode;
+  label: string;
+  hint: string;
 }) {
   return (
-    <li className="flex items-start gap-3">
-      <span
-        className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-          done
-            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-            : "bg-background/60 text-muted-foreground border border-border"
-        }`}
-      >
-        {done ? <Check className="h-3 w-3" /> : n}
-      </span>
-      <div className="flex-1">
-        <div className="text-foreground font-medium">{title}</div>
-        <div className="text-muted-foreground text-[11px] mt-0.5">{children}</div>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`group rounded-xl border p-4 text-left transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+        primary
+          ? "border-cyan-500/40 bg-gradient-to-br from-cyan-500/15 to-sky-500/5 hover:shadow-[0_0_22px_-6px_rgba(6,182,212,0.6)]"
+          : "border-border/60 bg-card/40 hover:border-primary/50"
+      }`}
+    >
+      <div className="flex items-center gap-2 mb-1">
+        {loading ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <span className="text-primary">{icon}</span>}
+        <span className="text-sm font-semibold">{label}</span>
       </div>
-    </li>
+      <div className="text-[11px] text-muted-foreground">{hint}</div>
+    </button>
   );
 }
 
