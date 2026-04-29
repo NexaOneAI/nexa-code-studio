@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useCredits } from "@/hooks/useCredits";
 import { Button } from "@/components/ui/button";
-import { Sparkles, FolderKanban, CreditCard, Zap, Activity, Infinity as InfinityIcon, Shield, CheckCircle2, X } from "lucide-react";
+import { Sparkles, FolderKanban, CreditCard, Zap, Activity, Infinity as InfinityIcon, Shield, CheckCircle2, X, Rocket, Smartphone, ShoppingBag, History, ArrowRight, Plus } from "lucide-react";
 import { projectsService, type ProjectSummary } from "@/services/projects.service";
 import { localStore, subscribeStore } from "@/lib/local-store";
 import { supabaseClient } from "@/integrations/supabase/client";
@@ -97,26 +97,92 @@ function Dashboard() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3 flex-wrap">
-            Hola, <span className="text-gradient">{name}</span>
-            {isAdmin && (
-              <Badge
-                variant="outline"
-                className="gap-1 border-[color:var(--neon-violet)]/50 text-[color:var(--neon-violet)] bg-[color:var(--neon-violet)]/10"
-              >
-                <Shield className="h-3 w-3" /> Admin
-              </Badge>
-            )}
-          </h1>
-          <p className="text-muted-foreground mt-1">Bienvenido de vuelta a Nexa One Builder</p>
+      {/* Hero welcome */}
+      <div className="relative overflow-hidden rounded-3xl glass-card p-6 md:p-10">
+        <div className="absolute inset-0 grid-bg opacity-40 pointer-events-none" />
+        <div className="absolute -top-32 -right-24 h-72 w-72 rounded-full bg-[color:var(--neon-violet)]/20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -left-24 h-72 w-72 rounded-full bg-[color:var(--neon-cyan)]/15 blur-3xl pointer-events-none" />
+        <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+          <div className="space-y-3 max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[color:var(--neon-violet)]/30 bg-[color:var(--neon-violet)]/10 text-xs font-medium text-[color:var(--neon-violet)]">
+              <Sparkles className="h-3 w-3" /> Nexa One Builder
+              {isAdmin && (
+                <span className="ml-2 inline-flex items-center gap-1 text-[10px] uppercase tracking-wide">
+                  <Shield className="h-3 w-3" /> Admin
+                </span>
+              )}
+            </div>
+            <h1 className="text-3xl md:text-5xl font-bold leading-tight">
+              Bienvenido a <span className="text-gradient">Nexa One</span>
+            </h1>
+            <p className="text-base md:text-lg text-muted-foreground">
+              Crea apps reales listas para publicar — Web, PWA y Play Store en minutos.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Button asChild size="lg" className="bg-gradient-primary border-0 shadow-glow text-base">
+              <Link to="/builder"><Plus className="mr-2 h-4 w-4" /> Crear nueva app</Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="border-[color:var(--neon-cyan)]/40 hover:bg-[color:var(--neon-cyan)]/10">
+              <Link to="/projects">Mis proyectos</Link>
+            </Button>
+          </div>
         </div>
-        <Button asChild size="lg" className="bg-gradient-primary border-0 shadow-glow">
-          <Link to="/builder"><Sparkles className="mr-2 h-4 w-4" /> Crear nuevo proyecto</Link>
-        </Button>
       </div>
 
+      {/* Big action cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <BigCard
+          to="/builder"
+          icon={Rocket}
+          title="Crear nueva app"
+          desc="Lanza el asistente IA y construye tu próxima Web App, PWA o Android."
+          accent="violet"
+          highlight
+        />
+        <BigCard
+          to="/projects"
+          icon={FolderKanban}
+          title="Mis proyectos"
+          desc={`${projects.length} ${projects.length === 1 ? "proyecto" : "proyectos"} en tu workspace.`}
+          accent="cyan"
+        />
+        <BigCard
+          to="/credits"
+          icon={showUnlimited ? InfinityIcon : CreditCard}
+          title="Créditos"
+          desc={showUnlimited ? "Acceso ilimitado activo." : `${balance} créditos disponibles.`}
+          accent={!showUnlimited && balance < 5 ? "warn" : "magenta"}
+          rightSlot={
+            !showUnlimited && (
+              <CreditMeter balance={balance} />
+            )
+          }
+        />
+        <BigCard
+          to="/builder"
+          icon={Smartphone}
+          title="Publicar en Play Store"
+          desc="Exporta tu app como PWA lista para PWABuilder y Google Play."
+          accent="cyan"
+        />
+        <BigCard
+          to="/credits"
+          icon={ShoppingBag}
+          title="Comprar créditos"
+          desc="Recarga con Mercado Pago — pagos seguros en MXN."
+          accent="violet"
+        />
+        <BigCard
+          to="/credits"
+          icon={History}
+          title="Historial IA"
+          desc={`${genCount} ${genCount === 1 ? "generación realizada" : "generaciones realizadas"}.`}
+          accent="magenta"
+        />
+      </div>
+
+      {/* Compact stats strip */}
       <div className="grid gap-4 md:grid-cols-3">
         <Stat
           icon={showUnlimited ? InfinityIcon : CreditCard}
@@ -141,7 +207,7 @@ function Dashboard() {
             Aún no se han consumido créditos. Crea tu primera app.
           </div>
         ) : (
-          <div className="rounded-xl border border-border bg-card/40 divide-y divide-border">
+          <div className="rounded-xl glass-card divide-y divide-border/60 overflow-hidden">
             {transactions.map((t) => (
               <div key={t.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
                 <div className="min-w-0">
@@ -165,7 +231,7 @@ function Dashboard() {
           <Button asChild variant="ghost" size="sm"><Link to="/projects">Ver todos</Link></Button>
         </div>
         {projects.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border p-12 text-center text-muted-foreground">
+          <div className="rounded-2xl border border-dashed border-border p-12 text-center text-muted-foreground glass-card">
             <FolderKanban className="mx-auto h-10 w-10 opacity-40" />
             <p className="mt-3">Aún no tienes proyectos.</p>
             <Button asChild className="mt-4 bg-gradient-primary border-0"><Link to="/builder">Crear el primero</Link></Button>
@@ -174,10 +240,13 @@ function Dashboard() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {projects.map((p) => (
               <Link key={p.id} to="/builder/$projectId" params={{ projectId: p.id }}
-                className="rounded-xl border border-border bg-card/40 p-5 hover:border-primary/50 hover:shadow-glow transition">
+                className="group rounded-2xl glass-card p-5 hover:shadow-glow hover:-translate-y-0.5 transition-all duration-300">
                 <div className="font-semibold truncate">{p.name}</div>
                 <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{p.description || "Sin descripción"}</p>
-                <div className="mt-3 text-xs text-muted-foreground">{new Date(p.updated_at).toLocaleDateString()}</div>
+                <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{new Date(p.updated_at).toLocaleDateString()}</span>
+                  <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition" />
+                </div>
               </Link>
             ))}
           </div>
@@ -189,11 +258,93 @@ function Dashboard() {
 
 function Stat({ icon: Icon, label, value, accent }: { icon: any; label: string; value: string; accent?: "ok" | "warn" }) {
   return (
-    <div className={`rounded-xl border bg-card/40 p-5 ${accent === "warn" ? "border-amber-500/40" : "border-border"}`}>
+    <div className={`rounded-2xl glass-card p-5 ${accent === "warn" ? "!border-amber-500/40" : ""}`}>
       <div className="flex items-center gap-2 text-muted-foreground text-sm">
         <Icon className="h-4 w-4" />{label}
       </div>
       <div className={`mt-2 text-3xl font-bold ${accent === "warn" ? "text-amber-400" : "text-gradient"}`}>{value}</div>
+    </div>
+  );
+}
+
+type Accent = "violet" | "cyan" | "magenta" | "warn";
+const accentMap: Record<Accent, { ring: string; glow: string; icon: string }> = {
+  violet: {
+    ring: "hover:border-[color:var(--neon-violet)]/60",
+    glow: "from-[color:var(--neon-violet)]/25 to-transparent",
+    icon: "text-[color:var(--neon-violet)] bg-[color:var(--neon-violet)]/15",
+  },
+  cyan: {
+    ring: "hover:border-[color:var(--neon-cyan)]/60",
+    glow: "from-[color:var(--neon-cyan)]/20 to-transparent",
+    icon: "text-[color:var(--neon-cyan)] bg-[color:var(--neon-cyan)]/15",
+  },
+  magenta: {
+    ring: "hover:border-[color:var(--neon-magenta)]/60",
+    glow: "from-[color:var(--neon-magenta)]/25 to-transparent",
+    icon: "text-[color:var(--neon-magenta)] bg-[color:var(--neon-magenta)]/15",
+  },
+  warn: {
+    ring: "hover:border-amber-500/60 !border-amber-500/40",
+    glow: "from-amber-500/20 to-transparent",
+    icon: "text-amber-400 bg-amber-500/15",
+  },
+};
+
+function BigCard({
+  to,
+  icon: Icon,
+  title,
+  desc,
+  accent = "violet",
+  highlight = false,
+  rightSlot,
+}: {
+  to: string;
+  icon: any;
+  title: string;
+  desc: string;
+  accent?: Accent;
+  highlight?: boolean;
+  rightSlot?: React.ReactNode;
+}) {
+  const a = accentMap[accent];
+  return (
+    <Link
+      to={to}
+      className={`group relative overflow-hidden rounded-2xl glass-card p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-glow ${a.ring} ${highlight ? "ring-1 ring-[color:var(--neon-violet)]/30" : ""}`}
+    >
+      <div className={`absolute -top-16 -right-16 h-40 w-40 rounded-full bg-gradient-to-br ${a.glow} blur-2xl opacity-70 group-hover:opacity-100 transition-opacity pointer-events-none`} />
+      <div className="relative flex items-start justify-between gap-4">
+        <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${a.icon}`}>
+          <Icon className="h-6 w-6" />
+        </div>
+        <ArrowRight className="h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+      </div>
+      <div className="relative mt-5">
+        <h3 className="text-lg font-semibold">{title}</h3>
+        <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{desc}</p>
+        {rightSlot && <div className="mt-3">{rightSlot}</div>}
+      </div>
+    </Link>
+  );
+}
+
+function CreditMeter({ balance }: { balance: number }) {
+  const max = 100;
+  const pct = Math.max(4, Math.min(100, (balance / max) * 100));
+  const low = balance < 5;
+  return (
+    <div className="space-y-1">
+      <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden">
+        <div
+          className={`h-full rounded-full ${low ? "bg-amber-400" : "bg-gradient-neon"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="text-[11px] text-muted-foreground">
+        {low ? "Saldo bajo — recarga pronto" : "Saldo saludable"}
+      </div>
     </div>
   );
 }
