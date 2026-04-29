@@ -4,7 +4,6 @@ import { useCredits } from "@/hooks/useCredits";
 import { Button } from "@/components/ui/button";
 import { Sparkles, FolderKanban, CreditCard, Zap, Activity, Infinity as InfinityIcon, Shield, CheckCircle2, X, Rocket, Smartphone, ShoppingBag, History, ArrowRight, Plus } from "lucide-react";
 import { projectsService, type ProjectSummary } from "@/services/projects.service";
-import { localStore, subscribeStore } from "@/lib/local-store";
 import { supabaseClient } from "@/integrations/supabase/client";
 import { creditsService } from "@/services/credits.service";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
@@ -35,18 +34,12 @@ function Dashboard() {
       const list = await projectsService.list();
       if (!alive) return;
       setProjects(list.slice(0, 6));
-      // Generaciones: si hay sesión Supabase, contamos; si no, usamos local.
       if (supabaseClient) {
-        const { data: sess } = await supabaseClient.auth.getSession();
-        if (sess.session) {
-          const { count } = await supabaseClient
-            .from("generations")
-            .select("id", { count: "exact", head: true });
-          if (alive) setGenCount(count || 0);
-          return;
-        }
+        const { count } = await supabaseClient
+          .from("generations")
+          .select("id", { count: "exact", head: true });
+        if (alive) setGenCount(count || 0);
       }
-      setGenCount(localStore.listGenerations().length);
     };
     const refreshTx = async () => {
       const tx = await creditsService.listTransactions();
@@ -54,8 +47,7 @@ function Dashboard() {
     };
     refresh();
     refreshTx();
-    const off = subscribeStore(() => { refresh(); refreshTx(); });
-    return () => { alive = false; off(); };
+    return () => { alive = false; };
   }, []);
 
   // Refresca transacciones cada vez que cambia el balance (créditos en tiempo real).

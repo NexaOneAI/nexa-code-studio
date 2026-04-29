@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Trash2, Sparkles, FolderKanban } from "lucide-react";
 import { toast } from "sonner";
-import { subscribeStore } from "@/lib/local-store";
 import { projectsService, type ProjectSummary } from "@/services/projects.service";
 
 export const Route = createFileRoute("/_app/projects")({
@@ -24,8 +23,7 @@ function ProjectsPage() {
       setLoading(false);
     };
     load();
-    const off = subscribeStore(load);
-    return () => { alive = false; off(); };
+    return () => { alive = false; };
   }, []);
 
   const remove = async (id: string) => {
