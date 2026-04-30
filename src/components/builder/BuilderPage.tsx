@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { BuilderWizard, type WizardResult } from "./wizard/BuilderWizard";
 import { PublishPanel } from "./PublishPanel";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 
 interface Msg { role: "user" | "ai"; content: string; provider?: AIProvider; model?: string; }
 
@@ -287,9 +288,9 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       </div>
 
       {/* ── Main: Chat (fixed 340px) | Preview (flex-1) ── */}
-      <div className="flex-1 flex flex-row min-h-0 overflow-hidden">
-        {/* Left: Chat panel – fixed width */}
-        <div className="w-[340px] min-w-[300px] max-w-[420px] shrink-0 h-full flex flex-col bg-card/20 border-r border-border">
+      <PanelGroup direction="horizontal" className="flex-1 min-h-0 overflow-hidden">
+        {/* Left: Chat panel – 30% */}
+        <Panel defaultSize={30} minSize={20} maxSize={45} className="h-full flex flex-col bg-card/20">
               {/* Tab bar */}
               <div className="flex items-center gap-0.5 px-1.5 h-9 min-h-[2.25rem] border-b border-border bg-card/30 shrink-0 overflow-x-auto">
                 {sideTabs.filter((t) => t.show !== false).map((t) => (
@@ -489,13 +490,15 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
                   </div>
                 )}
               </div>
-        </div>
+        </Panel>
 
-        {/* Right: Preview – fills remaining space */}
-        <div className="flex-1 h-full flex flex-col min-w-0">
+        <PanelResizeHandle className="w-1.5 bg-border hover:bg-primary/40 transition-colors cursor-col-resize" />
+
+        {/* Right: Preview – 70% */}
+        <Panel defaultSize={70} minSize={40} className="h-full flex flex-col min-w-0">
           <PreviewPane html={html} />
-        </div>
-      </div>
+        </Panel>
+      </PanelGroup>
 
       <Sheet open={publishOpen} onOpenChange={setPublishOpen}>
         <SheetContent side="right" className="w-full sm:max-w-3xl p-0 border-l border-border bg-background">
