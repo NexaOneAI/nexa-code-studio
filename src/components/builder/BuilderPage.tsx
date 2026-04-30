@@ -403,27 +403,37 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
                       )}
                       {/* Error */}
                       {!loading && lastError && (
-                        <div className="rounded-lg bg-destructive/10 border border-destructive/40 p-2.5 text-xs space-y-1.5">
-                          <p className="text-[10px] text-muted-foreground line-clamp-3">{lastError}</p>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <Button size="sm" variant="outline" className="h-6 text-[10px]"
+                        <div className="rounded-lg bg-destructive/10 border-2 border-destructive/50 p-3 text-xs space-y-2 animate-in fade-in slide-in-from-top-2">
+                          <div className="flex items-start gap-2">
+                            <span className="text-destructive text-base leading-none mt-0.5">⚠️</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-destructive mb-0.5">Error en la generación</p>
+                              <p className="text-[11px] text-muted-foreground">{lastError}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Button size="sm" className="h-8 text-xs bg-primary hover:bg-primary/90 text-primary-foreground"
                               onClick={() => runAction(lastFailedMode, lastFailedAction, lastFailedPrompt)}>
-                              <RefreshCw className="h-3 w-3 mr-1" /> Reintentar
+                              <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Reintentar
                             </Button>
-                            <Button size="sm" variant="outline" className="h-6 text-[10px]"
+                            <Button size="sm" variant="outline" className="h-8 text-xs"
                               onClick={() => {
                                 const nextProvider = PROVIDER_LIST.find((p) => p.id !== provider);
                                 if (nextProvider) handleProviderChange(nextProvider.id as AIProvider);
                                 toast.info("Modelo cambiado", { description: `Ahora usando ${nextProvider?.label || "otro proveedor"}. Intenta de nuevo.` });
                               }}>
-                              <ArrowRightLeft className="h-3 w-3 mr-1" /> Cambiar modelo
+                              <ArrowRightLeft className="h-3.5 w-3.5 mr-1.5" /> Cambiar modelo
                             </Button>
                             {hasApp && (
-                              <Button size="sm" variant="outline" className="h-6 text-[10px]"
+                              <Button size="sm" variant="outline" className="h-8 text-xs"
                                 onClick={() => runAction("fix", "fix_errors", "Detecta y repara automáticamente todos los errores del código actual.")}>
-                                <Wrench className="h-3 w-3 mr-1" /> Reparar con IA
+                                <Wrench className="h-3.5 w-3.5 mr-1.5" /> Reparar con IA
                               </Button>
                             )}
+                            <Button size="sm" variant="ghost" className="h-8 text-xs text-muted-foreground"
+                              onClick={() => setLastError(null)}>
+                              Cerrar
+                            </Button>
                           </div>
                         </div>
                       )}
