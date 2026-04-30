@@ -96,13 +96,19 @@ function validateGeneratedFiles(files: any[]): FileItem[] {
   for (const script of scripts) {
     const js = script[1].trim();
     if (!js) continue;
-    const pairs: Array<[string, string]> = [["(", ")"], ["{", "}"], ["[", "]"]];
+    const pairs: Array<[string, string]> = [
+      ["(", ")"],
+      ["{", "}"],
+      ["[", "]"],
+    ];
     for (const [open, close] of pairs) {
       const opens = (js.match(new RegExp(`\\${open}`, "g")) ?? []).length;
       const closes = (js.match(new RegExp(`\\${close}`, "g")) ?? []).length;
-      if (opens !== closes) throw new Error("El código generado no compila: delimitadores incompletos");
+      if (opens !== closes)
+        throw new Error("El código generado no compila: delimitadores incompletos");
     }
-    if (/\b(import|export)\s+/m.test(js)) throw new Error("El código generado no compila: JavaScript no standalone");
+    if (/\b(import|export)\s+/m.test(js))
+      throw new Error("El código generado no compila: JavaScript no standalone");
   }
   return valid;
 }
