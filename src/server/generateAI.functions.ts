@@ -158,10 +158,17 @@ export const generateAI = createServerFn({ method: "POST" })
     }
 
     if (!success) {
+      // Reembolso automático: ningún proveedor entregó un resultado válido.
+      // Para usuarios ilimitados queda registrado a 0 (auditoría).
+      await supabase.rpc("refund_credits", {
+        _amount: data.cost,
+        _reason: `${data.reason} · fallo total de proveedores`,
+      });
       return {
         ok: false as const,
-        error: `Todos los proveedores fallaron. Detalles: ${errors.slice(0, 4).join(" | ")}`,
+        error: `Todos los proveedores fallaron. Créditos reembolsados. Detalles: ${errors.slice(0, 4).join(" | ")}`,
         attempts: errors,
+        refunded: data.cost,
       };
     }
 
