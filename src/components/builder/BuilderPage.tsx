@@ -12,7 +12,8 @@ import { PreviewPane } from "./PreviewPane";
 import { CodeEditor, FileItem } from "./CodeEditor";
 import { exportProjectZip, preloadExportZipDeps, isExportZipReady } from "@/lib/exportZip";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import { Sparkles, Wand2, Bug, Smartphone, Zap, Rocket, Download, Loader2, Send, WifiOff } from "lucide-react";
+import { Sparkles, Wand2, Bug, Smartphone, Zap, Rocket, Download, Loader2, Send, WifiOff, Eye, Files, Database, Cloud, PlayCircle, Wrench } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { CREDIT_COSTS, CREDIT_LABELS, CreditAction } from "@/lib/credit-costs";
 import { projectsService } from "@/services/projects.service";
@@ -80,6 +81,9 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState<string>("");
+  const [stageIndex, setStageIndex] = useState<number>(-1);
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [rightTab, setRightTab] = useState<string>("preview");
   const [currentProjectId, setCurrentProjectId] = useState<string | undefined>(projectId);
   const [provider, setProvider] = useState<AIProvider>(() => getDefaultProvider());
   const [model, setModel] = useState<string>(() => AI_PROVIDERS[getDefaultProvider()].defaultModel);
@@ -127,6 +131,19 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   }, [messages]);
 
   const html = files.find((f) => f.path === "index.html")?.content || "";
+  const sqlFile = files.find((f) => f.path === "supabase.sql");
+  const manifestFile = files.find((f) => f.path === "manifest.webmanifest");
+  const netlifyFile = files.find((f) => f.path === "netlify.toml");
+  const playstoreFile = files.find((f) => f.path === "playstore.md");
+
+  const STAGES = [
+    "Analizando idea",
+    "Diseñando UI",
+    "Generando código",
+    "Creando base de datos",
+    "Validando build",
+    "Preparando exportación",
+  ];
 
   const persistProject = async (n: string, fs: FileItem[], p: string, description?: string) => {
     const id = await projectsService.save({
@@ -161,7 +178,9 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
     }
 
     setLoading(true);
-    setLoadingStage(mode === "generate" ? "Pensando la arquitectura…" : "Aplicando cambios…");
+    setLastError(null);
+    setStageIndex(0);
+    setLoadingStage(STAGES[0]);
     setMessages((m) => [...m, { role: "user", content: finalPrompt || `Acción: ${mode}` }]);
 
     try {
@@ -176,7 +195,12 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       };
 
       {
-        setLoadingStage("Generando código con IA…");
+        setStageIndex(1);
+        setLoadingStage(STAGES[1]);
+        // Pequeña pausa visual entre etapas para que el usuario las perciba.
+        await new Promise((r) => setTimeout(r, 250));
+        setStageIndex(2);
+        setLoadingStage(STAGES[2]);
         // Punto único centralizado: créditos + proveedor + fallback + registro.
         const resp = await generateAI({
           headers: await authedHeaders(),
@@ -193,8 +217,14 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         });
         if (!resp.ok) {
           const isCredits = (resp as any).code === "INSUFFICIENT_CREDITS";
-          const desc = isCredits ? "Recarga créditos para continuar." : resp.error;
+          const refunded = (resp as any).refunded as number | undefined;
+          const desc = isCredits
+            ? "Recarga créditos para continuar."
+            : refunded
+              ? `${resp.error} (se reembolsaron ${refunded} créditos)`
+              : resp.error;
           toast.error(isCredits ? "Créditos insuficientes" : "Generación falló", { description: desc });
+          setLastError(resp.error);
           setMessages((m) => [
             ...m,
             {
@@ -236,7 +266,11 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         await refresh();
       }
 
-      setLoadingStage("Actualizando vista previa…");
+      setStageIndex(3);
+      setLoadingStage(STAGES[3]);
+      await new Promise((r) => setTimeout(r, 200));
+      setStageIndex(4);
+      setLoadingStage(STAGES[4]);
 
       // Para acciones distintas a "generate" preservamos los archivos existentes y
       // sólo sustituimos los modificados.
@@ -257,6 +291,9 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         finalPrompt,
         result.description,
       );
+      setStageIndex(5);
+      setLoadingStage(STAGES[5]);
+      await new Promise((r) => setTimeout(r, 200));
       if (!projectId && mode === "generate") {
         nav({ to: "/builder/$projectId", params: { projectId: pid } });
       }
@@ -264,11 +301,13 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       toast.success("Generación completada");
     } catch (e: any) {
       const msg = e?.message || "Falló la generación";
+      setLastError(msg);
       toast.error("Error en la generación", { description: msg });
       setMessages((m) => [...m, { role: "ai", content: `❌ ${msg}` }]);
     } finally {
       setLoading(false);
       setLoadingStage("");
+      setStageIndex(-1);
     }
   };
 
@@ -441,9 +480,73 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
           </div>
         </Panel>
         <PanelResizeHandle className="w-px bg-border hover:bg-primary/50 transition" />
-        {/* Preview */}
+        {/* Preview + Tabs */}
         <Panel defaultSize={40} minSize={25}>
-          <PreviewPane html={html} />
+          <Tabs value={rightTab} onValueChange={setRightTab} className="h-full flex flex-col">
+            <TabsList className="h-9 rounded-none border-b border-border bg-card/30 px-2 justify-start gap-1 overflow-x-auto">
+              <TabsTrigger value="preview" className="h-7 text-xs gap-1.5"><Eye className="h-3.5 w-3.5" />Vista previa</TabsTrigger>
+              <TabsTrigger value="files" className="h-7 text-xs gap-1.5"><Files className="h-3.5 w-3.5" />Archivos</TabsTrigger>
+              {sqlFile && <TabsTrigger value="sql" className="h-7 text-xs gap-1.5"><Database className="h-3.5 w-3.5" />SQL</TabsTrigger>}
+              <TabsTrigger value="deploy" className="h-7 text-xs gap-1.5"><Cloud className="h-3.5 w-3.5" />Deploy</TabsTrigger>
+              <TabsTrigger value="playstore" className="h-7 text-xs gap-1.5"><PlayCircle className="h-3.5 w-3.5" />Play Store</TabsTrigger>
+            </TabsList>
+            <div className="flex-1 overflow-hidden">
+              <TabsContent value="preview" className="h-full m-0 data-[state=active]:flex data-[state=active]:flex-col">
+                <PreviewPane html={html} />
+              </TabsContent>
+              <TabsContent value="files" className="h-full m-0 overflow-auto p-3">
+                {files.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Aún no hay archivos generados.</p>
+                ) : (
+                  <ul className="space-y-1 text-xs font-mono">
+                    {files.map((f) => (
+                      <li key={f.path} className="flex items-center justify-between rounded border border-border/60 bg-background/40 px-2 py-1.5">
+                        <span className="truncate">{f.path}</span>
+                        <span className="text-muted-foreground text-[10px]">{(f.content.length / 1024).toFixed(1)} KB</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </TabsContent>
+              <TabsContent value="sql" className="h-full m-0 overflow-auto">
+                <pre className="text-xs p-3 font-mono whitespace-pre-wrap text-foreground/90">
+                  {sqlFile?.content || "-- La IA no generó SQL para este proyecto."}
+                </pre>
+              </TabsContent>
+              <TabsContent value="deploy" className="h-full m-0 overflow-auto p-4 space-y-4 text-sm">
+                <div className="rounded-lg border border-border/60 bg-card/40 p-4">
+                  <h3 className="font-semibold mb-1.5 flex items-center gap-2"><Cloud className="h-4 w-4 text-primary" />Netlify</h3>
+                  <p className="text-xs text-muted-foreground mb-2">Arrastra el ZIP exportado a netlify.com/drop o conecta tu repo.</p>
+                  {netlifyFile && (
+                    <pre className="text-[11px] bg-background/60 p-2 rounded font-mono overflow-x-auto">{netlifyFile.content}</pre>
+                  )}
+                </div>
+                <div className="rounded-lg border border-border/60 bg-card/40 p-4">
+                  <h3 className="font-semibold mb-1.5 flex items-center gap-2"><Smartphone className="h-4 w-4 text-primary" />PWA</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {manifestFile ? "manifest.webmanifest incluido. Tu app es instalable." : "No hay manifest. Pide a la IA: 'añade soporte PWA'."}
+                  </p>
+                </div>
+              </TabsContent>
+              <TabsContent value="playstore" className="h-full m-0 overflow-auto p-4 space-y-3 text-sm">
+                <div className="rounded-lg border border-border/60 bg-card/40 p-4">
+                  <h3 className="font-semibold mb-1.5 flex items-center gap-2"><PlayCircle className="h-4 w-4 text-primary" />Empaquetar para Play Store</h3>
+                  <ol className="list-decimal pl-5 text-xs text-muted-foreground space-y-1">
+                    <li>Publica la app como PWA (Netlify u otro host).</li>
+                    <li>Abre PWA Builder con la URL pública.</li>
+                    <li>Genera el paquete Android (TWA).</li>
+                    <li>Sube el .aab a Google Play Console.</li>
+                  </ol>
+                  <Button asChild size="sm" variant="outline" className="mt-3 h-8">
+                    <a href="https://www.pwabuilder.com" target="_blank" rel="noreferrer">Abrir PWA Builder</a>
+                  </Button>
+                </div>
+                {playstoreFile && (
+                  <pre className="text-[11px] bg-background/60 p-3 rounded font-mono whitespace-pre-wrap">{playstoreFile.content}</pre>
+                )}
+              </TabsContent>
+            </div>
+          </Tabs>
         </Panel>
         <PanelResizeHandle className="w-px bg-border hover:bg-primary/50 transition" />
         {/* Editor */}
