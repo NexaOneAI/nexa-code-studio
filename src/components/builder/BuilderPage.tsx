@@ -324,6 +324,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       const headers = await authedHeaders();
 
       // Timeout real de 60s
+      console.log("[Builder] Prompt enviado:", { mode, provider, model, prompt: finalPrompt });
       const controller = new AbortController();
       abortRef.current = controller;
       const timeoutId = setTimeout(() => controller.abort(), 60_000);
@@ -364,6 +365,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         clearTimeout(timeoutId);
         abortRef.current = null;
       }
+
+      console.log("[Builder] Respuesta recibida:", { ok: resp.ok, provider: resp.provider, model: resp.model, filesCount: resp.files?.length });
 
       if (!resp.ok) {
         const isCredits = (resp as any).code === "INSUFFICIENT_CREDITS";
@@ -459,6 +462,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         newFiles = Array.from(map.values());
       }
       setFiles(newFiles);
+      console.log("[Builder] Preview render triggered:", { fileCount: newFiles.length, mode });
 
       const pid = await persistProject(
         mode === "generate" ? result.name : name,
