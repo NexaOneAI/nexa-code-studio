@@ -428,16 +428,19 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
                         </div>
                       )}
                       {/* Smart suggestions inline after generation */}
-                      {!loading && hasApp && messages.length > 0 && sideTab === "chat" && (
+                      {!loading && sideTab === "chat" && (
                         <div className="border border-border/60 rounded-lg p-2 bg-background/30">
                           <div className="text-[10px] font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
-                            <Lightbulb className="h-3 w-3 text-primary" /> Sugerencias rápidas
+                            <Lightbulb className="h-3 w-3 text-primary" /> Sugerencias para mejorar esta app
                           </div>
                           <div className="flex flex-wrap gap-1">
-                            {SMART_SUGGESTIONS.slice(0, 5).map((s) => (
-                              <button key={s.label} onClick={() => applySuggestion(s)} disabled={loading}
+                            {SMART_SUGGESTIONS.map((s) => (
+                              <button key={s.label} onClick={() => {
+                                if (hasApp) { applySuggestion(s); }
+                                else { setPrompt(s.prompt); toast.info("Prompt cargado", { description: "Haz clic en Generar app." }); }
+                              }} disabled={loading}
                                 className="flex items-center gap-1 rounded-full border border-border bg-background/50 px-2 py-0.5 text-[10px] hover:border-primary/40 hover:bg-primary/5 transition disabled:opacity-50">
-                                <s.icon className="h-3 w-3 text-primary/70" /> {s.label}
+                                <s.icon className="h-3 w-3 text-primary/70" /> {s.label} <span className="text-primary/60">Aplicar</span>
                               </button>
                             ))}
                           </div>
