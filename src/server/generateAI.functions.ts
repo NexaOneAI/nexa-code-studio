@@ -94,7 +94,7 @@ function splitPromptIntoSteps(prompt: string): string {
 function assertHtmlCompiles(parsed: any): { ok: true } | { ok: false; error: string } {
   const html = parsed?.files?.find((f: any) => f?.path === "index.html")?.content ?? "";
   const scripts = Array.from(html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi));
-  for (const script of scripts) {
+  for (const script of scripts as RegExpMatchArray[]) {
     const js = script[1].trim();
     if (!js) continue;
     try {
