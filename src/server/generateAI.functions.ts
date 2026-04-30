@@ -18,7 +18,7 @@ import { callProvider, extractJson, type AIProviderId } from "./aiProviderServic
 const InputSchema = z.object({
   provider: z.enum(["openai", "gemini", "claude", "grok"]),
   model: z.string().min(1).max(80),
-  prompt: z.string().min(3).max(4000),
+  prompt: z.string().min(3).max(12000),
   context: z.string().max(20000).optional(),
   mode: z.enum(["generate", "improve", "fix", "mobile", "optimize", "netlify"]).default("generate"),
   projectId: z.string().uuid().optional(),
