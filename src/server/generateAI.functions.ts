@@ -113,30 +113,17 @@ export const generateAI = createServerFn({ method: "POST" })
     const { supabase, userId } = context as { supabase: any; userId: string };
     const primary = data.provider as AIProviderId;
 
-    // 1. Consumir créditos vía RPC ANTES de llamar al proveedor.
-    const { data: consumed, error: consumeErr } = await supabase.rpc("consume_credits", {
-      _amount: data.cost,
-      _reason: `${data.reason} · ${primary}/${data.model}`,
-    });
-    if (consumeErr) {
-      return { ok: false as const, error: `No se pudo consumir créditos: ${consumeErr.message}` };
-    }
-    if (!consumed) {
-      return {
-        ok: false as const,
-        error: "Créditos insuficientes",
-        code: "INSUFFICIENT_CREDITS" as const,
-      };
-    }
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), 60_000);
 
-    // 2. Construir el prompt unificado.
+    // 1. Construir el prompt unificado.
     const userMessage = [
-      MODE_INSTRUCTIONS[data.mode],
+      `${MODE_INSTRUCTIONS[data.mode]} Primero crea una base mínima funcional y compilable. Luego integra pasos adicionales solo si no comprometen la estabilidad.`,
       data.context ? `\n\n--- CÓDIGO ACTUAL ---\n${data.context}\n--- FIN ---` : "",
-      `\n\nPETICIÓN DEL USUARIO:\n${data.prompt}`,
+      `\n\nPETICIÓN DEL USUARIO DIVIDIDA EN PASOS INTERNOS:\n${splitPromptIntoSteps(data.prompt)}`,
     ].join("");
 
-    // 3. Cadena de intentos: primario primero, luego el resto como fallback.
+    // 2. Cadena de intentos: primario primero, luego el resto como fallback.
     const attemptOrder: Array<{ provider: AIProviderId; model: string }> = [
       { provider: primary, model: data.model },
       ...ALL_PROVIDERS.filter((p) => p !== primary).map((p) => ({
@@ -153,13 +140,16 @@ export const generateAI = createServerFn({ method: "POST" })
       parsed: any;
     } | null = null;
 
-    for (const attempt of attemptOrder) {
-      const aiResp = await callProvider({
-        provider: attempt.provider,
-        model: attempt.model,
-        systemPrompt: SYSTEM_PROMPT,
-        userPrompt: userMessage,
-      });
+    try {
+      for (const attempt of attemptOrder) {
+        if (timeoutController.signal.aborted) break;
+        const aiResp = await callProvider({
+          provider: attempt.provider,
+          model: attempt.model,
+          systemPrompt: SYSTEM_PROMPT,
+          userPrompt: userMessage,
+          signal: timeoutController.signal,
+        });
       if (!aiResp.ok) {
         errors.push(`${attempt.provider}: ${aiResp.error}`);
         continue;
@@ -175,23 +165,39 @@ export const generateAI = createServerFn({ method: "POST" })
         errors.push(`${attempt.provider}: estructura inválida o HTML vacío`);
         continue;
       }
+      const compileCheck = assertHtmlCompiles(parsed);
+      if (!compileCheck.ok) {
+        errors.push(`${attempt.provider}: ${compileCheck.error}`);
+        continue;
+      }
       success = { provider: attempt.provider, model: attempt.model, raw: aiResp.text, parsed };
       break;
+      }
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     if (!success) {
-      // Reembolso automático: ningún proveedor entregó un resultado válido.
-      // Para usuarios ilimitados queda registrado a 0 (auditoría).
-      await supabase.rpc("refund_credits", {
-        _amount: data.cost,
-        _reason: `${data.reason} · fallo total de proveedores`,
-      });
       return {
         ok: false as const,
-        error: `Todos los proveedores fallaron. Créditos reembolsados. Detalles: ${errors.slice(0, 4).join(" | ")}`,
+        error: timeoutController.signal.aborted
+          ? "La generación tardó demasiado. Intenta de nuevo o cambia de modelo."
+          : `Todos los proveedores fallaron. Detalles: ${errors.slice(0, 4).join(" | ")}`,
         attempts: errors,
-        refunded: data.cost,
+        code: timeoutController.signal.aborted ? ("TIMEOUT" as const) : ("PROVIDERS_FAILED" as const),
       };
+    }
+
+    // 3. Cobrar solo después de obtener código válido y compilable.
+    const { data: consumed, error: consumeErr } = await supabase.rpc("consume_credits", {
+      _amount: data.cost,
+      _reason: `${data.reason} · ${success.provider}/${success.model}`,
+    });
+    if (consumeErr) {
+      return { ok: false as const, error: `No se pudo consumir créditos: ${consumeErr.message}` };
+    }
+    if (!consumed) {
+      return { ok: false as const, error: "Créditos insuficientes", code: "INSUFFICIENT_CREDITS" as const };
     }
 
     // 4. Persistir generación.
