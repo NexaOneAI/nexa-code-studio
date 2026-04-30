@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { CREDIT_COSTS, CREDIT_LABELS, CreditAction } from "@/lib/credit-costs";
 import { projectsService } from "@/services/projects.service";
 import { generateAI } from "@/server/generateAI.functions";
+import { refundCreditsFn } from "@/server/credits.functions";
 import { authedHeaders } from "@/lib/auth-headers";
 import {
   AI_PROVIDERS,
@@ -221,15 +222,22 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
           const desc = isCredits
             ? "Recarga créditos para continuar."
             : refunded
-              ? `${resp.error} (se reembolsaron ${refunded} créditos)`
+              ? `Se devolvieron tus créditos automáticamente (${refunded}c). Detalle: ${resp.error}`
               : resp.error;
-          toast.error(isCredits ? "Créditos insuficientes" : "Generación falló", { description: desc });
+          toast.error(
+            isCredits
+              ? "Créditos insuficientes"
+              : refunded
+                ? "Generación falló — créditos devueltos"
+                : "Generación falló",
+            { description: desc },
+          );
           setLastError(resp.error);
           setMessages((m) => [
             ...m,
             {
               role: "ai",
-              content: `❌ ${resp.error}\n\nPuedes reintentar cambiando de proveedor en el selector superior.`,
+              content: `❌ ${resp.error}${refunded ? `\n\n💚 Se devolvieron tus créditos automáticamente (${refunded}c).` : ""}\n\nPuedes reintentar cambiando de proveedor en el selector superior.`,
             },
           ]);
           await refresh();
@@ -240,8 +248,33 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
             description: `${provider} falló. Se usó ${resp.provider}/${resp.model}.`,
           });
         }
-        // Validar archivos antes de mostrar.
-        const validFiles = validateGeneratedFiles(resp.files as any);
+        // Validar archivos antes de mostrar. Si la validación falla,
+        // reembolsar automáticamente los créditos consumidos.
+        let validFiles: FileItem[];
+        try {
+          validFiles = validateGeneratedFiles(resp.files as any);
+        } catch (validationErr: any) {
+          try {
+            await refundCreditsFn({
+              headers: await authedHeaders(),
+              data: { amount: cost, reason: `Validación falló: ${CREDIT_LABELS[action]}` },
+            });
+            toast.error("Generación falló — créditos devueltos", {
+              description: `Se devolvieron tus créditos automáticamente (${cost}c). ${validationErr.message}`,
+            });
+            setMessages((m) => [
+              ...m,
+              {
+                role: "ai",
+                content: `❌ ${validationErr.message}\n\n💚 Se devolvieron tus créditos automáticamente (${cost}c).`,
+              },
+            ]);
+          } finally {
+            await refresh();
+          }
+          setLastError(validationErr.message);
+          return;
+        }
         result = {
           name: resp.name,
           description: resp.description,
