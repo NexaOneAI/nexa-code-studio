@@ -33,7 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { BuilderWizard, type WizardResult } from "./wizard/BuilderWizard";
 import { PublishPanel } from "./PublishPanel";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from "react-resizable-panels";
+import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 
 interface Msg { role: "user" | "ai"; content: string; provider?: AIProvider; model?: string; }
 
