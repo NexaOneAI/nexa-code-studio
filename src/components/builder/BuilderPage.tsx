@@ -50,6 +50,12 @@ function validateGeneratedFiles(files: any[]): FileItem[] {
   const html = valid.find((f) => f.path === "index.html");
   if (!html) throw new Error("Falta el archivo index.html en la generación.");
   if (!/<html|<body|<div|<main|<section/i.test(html.content)) throw new Error("El index.html generado no contiene HTML válido.");
+  const scripts = Array.from(html.content.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)) as RegExpMatchArray[];
+  for (const script of scripts) {
+    const js = script[1].trim();
+    if (!js) continue;
+    try { new Function(js); } catch (e: any) { throw new Error(`El código generado no compila: ${e?.message || "error de JavaScript"}`); }
+  }
   return valid;
 }
 
