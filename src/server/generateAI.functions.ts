@@ -120,7 +120,7 @@ export const generateAI = createServerFn({ method: "POST" })
     const primary = data.provider as AIProviderId;
 
     const timeoutController = new AbortController();
-    const timeoutId = setTimeout(() => timeoutController.abort(), 60_000);
+    const timeoutId = setTimeout(() => timeoutController.abort(), 59_000);
 
     // 1. Construir el prompt unificado.
     const userMessage = [
