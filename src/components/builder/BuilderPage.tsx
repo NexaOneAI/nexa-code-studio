@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { RefreshCw, ArrowRightLeft } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useCredits } from "@/hooks/useCredits";
 import { Button } from "@/components/ui/button";
@@ -100,6 +101,11 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   // For guided mode
   const [showWizard, setShowWizard] = useState(false);
 
+  const [lastFailedPrompt, setLastFailedPrompt] = useState<string>("");
+  const [lastFailedMode, setLastFailedMode] = useState<"generate" | "improve" | "fix" | "mobile" | "optimize" | "netlify">("generate");
+  const [lastFailedAction, setLastFailedAction] = useState<CreditAction>("full_app");
+  const abortRef = useRef<AbortController | null>(null);
+
   useEffect(() => {
     if (exportReady) return;
     let alive = true;
@@ -141,7 +147,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
     if (!finalPrompt.trim() && mode === "generate") { toast.error("Escribe qué quieres construir"); return; }
     const cost = CREDIT_COSTS[action];
     if (!unlimited && balance < cost) { toast.error("Créditos insuficientes", { description: `Necesitas ${cost} créditos. Tienes ${balance}.` }); return; }
-    setLoading(true); setLastError(null); setStageIndex(0); setLoadingStage(STAGES[0]);
+    setLoading(true); setLastError(null); setLastFailedPrompt(finalPrompt); setLastFailedMode(mode); setLastFailedAction(action);
+    setStageIndex(0); setLoadingStage(STAGES[0]);
     setMessages((m) => [...m, { role: "user", content: finalPrompt || `Acción: ${mode}` }]);
     setSideTab("chat");
 
@@ -152,10 +159,42 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       await new Promise((r) => setTimeout(r, 250));
       setStageIndex(2); setLoadingStage(STAGES[2]);
 
-      const resp = await generateAI({
-        headers: await authedHeaders(),
-        data: { provider, model: getModel(provider, model), prompt: finalPrompt || `Acción: ${mode}`, mode, context: currentHtml, projectId: currentProjectId, cost, reason: CREDIT_LABELS[action] },
-      });
+      // Timeout 90s
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const timeoutId = setTimeout(() => controller.abort(), 90_000);
+
+      let resp: any;
+      try {
+        resp = await Promise.race([
+          generateAI({
+            headers: await authedHeaders(),
+            data: { provider, model: getModel(provider, model), prompt: finalPrompt || `Acción: ${mode}`, mode, context: currentHtml, projectId: currentProjectId, cost, reason: CREDIT_LABELS[action] },
+          }),
+          new Promise<never>((_, reject) => {
+            controller.signal.addEventListener("abort", () => reject(new Error("TIMEOUT")));
+          }),
+        ]);
+      } catch (timeoutErr: any) {
+        clearTimeout(timeoutId);
+        if (timeoutErr?.message === "TIMEOUT") {
+          console.error("[Builder] Generación timeout después de 90s", { provider, model, mode });
+          // Refund credits
+          try {
+            await refundCreditsFn({ headers: await authedHeaders(), data: { amount: cost, reason: `Timeout: ${CREDIT_LABELS[action]}` } });
+          } catch {}
+          await refresh();
+          const msg = "La generación tardó demasiado. Intenta de nuevo o cambia de modelo.";
+          setLastError(msg);
+          toast.error("Timeout", { description: msg });
+          setMessages((m) => [...m, { role: "ai", content: `⏱️ ${msg}\n\n💚 Créditos devueltos (${cost}c).` }]);
+          return;
+        }
+        throw timeoutErr;
+      } finally {
+        clearTimeout(timeoutId);
+        abortRef.current = null;
+      }
 
       if (!resp.ok) {
         const isCredits = (resp as any).code === "INSUFFICIENT_CREDITS";
@@ -198,6 +237,12 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       setPrompt(""); toast.success("Generación completada");
     } catch (e: any) {
       const msg = e?.message || "Falló la generación";
+      console.error("[Builder] Error en generación:", e);
+      // Refund on unexpected errors
+      try {
+        await refundCreditsFn({ headers: await authedHeaders(), data: { amount: CREDIT_COSTS[action], reason: `Error: ${CREDIT_LABELS[action]}` } });
+      } catch {}
+      await refresh();
       setLastError(msg); toast.error("Error", { description: msg });
       setMessages((m) => [...m, { role: "ai", content: `❌ ${msg}` }]);
     } finally { setLoading(false); setLoadingStage(""); setStageIndex(-1); }
@@ -360,11 +405,26 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
                       {!loading && lastError && (
                         <div className="rounded-lg bg-destructive/10 border border-destructive/40 p-2.5 text-xs space-y-1.5">
                           <p className="text-[10px] text-muted-foreground line-clamp-3">{lastError}</p>
-                          <Button size="sm" variant="outline" className="h-6 text-[10px]"
-                            onClick={() => runAction("fix", "fix_errors", "Detecta y repara automáticamente todos los errores del código actual.")}
-                            disabled={!hasApp}>
-                            <Wrench className="h-3 w-3 mr-1" /> Reparar con IA
-                          </Button>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Button size="sm" variant="outline" className="h-6 text-[10px]"
+                              onClick={() => runAction(lastFailedMode, lastFailedAction, lastFailedPrompt)}>
+                              <RefreshCw className="h-3 w-3 mr-1" /> Reintentar
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-6 text-[10px]"
+                              onClick={() => {
+                                const nextProvider = PROVIDER_LIST.find((p) => p.id !== provider);
+                                if (nextProvider) handleProviderChange(nextProvider.id as AIProvider);
+                                toast.info("Modelo cambiado", { description: `Ahora usando ${nextProvider?.label || "otro proveedor"}. Intenta de nuevo.` });
+                              }}>
+                              <ArrowRightLeft className="h-3 w-3 mr-1" /> Cambiar modelo
+                            </Button>
+                            {hasApp && (
+                              <Button size="sm" variant="outline" className="h-6 text-[10px]"
+                                onClick={() => runAction("fix", "fix_errors", "Detecta y repara automáticamente todos los errores del código actual.")}>
+                                <Wrench className="h-3 w-3 mr-1" /> Reparar con IA
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       )}
                       {/* Smart suggestions inline after generation */}
