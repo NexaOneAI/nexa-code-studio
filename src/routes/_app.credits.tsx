@@ -11,6 +11,7 @@ import { CREDIT_PLAN_LIST, type CreditPlanId } from "@/lib/credit-plans";
 import { createMercadoPagoPreference } from "@/server/mercadoPago.functions";
 import { authedHeaders } from "@/lib/auth-headers";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useAuth } from "@/contexts/AuthContext";
 
 export const Route = createFileRoute("/_app/credits")({
   head: () => ({ meta: [{ title: "Créditos — Nexa One" }] }),
@@ -19,10 +20,14 @@ export const Route = createFileRoute("/_app/credits")({
 
 function CreditsPage() {
   const { balance, unlimited } = useCredits();
+  const { user } = useAuth();
   const adminState = useIsAdmin();
   const isAdmin = typeof adminState === "boolean" ? adminState : adminState.isAdmin;
   const [tx, setTx] = useState<Array<{ id: string; amount: number; reason: string; created_at: string }>>([]);
   const [buyingPlan, setBuyingPlan] = useState<CreditPlanId | null>(null);
+  const [reloading, setReloading] = useState(false);
+
+  const planLabel = unlimited ? "Admin" : balance > 100 ? "Pro" : "Free";
 
   useEffect(() => {
     let alive = true;
@@ -75,7 +80,40 @@ function CreditsPage() {
         <CreditCard className="mx-auto h-8 w-8 text-primary" />
         <div className="mt-3 text-5xl font-bold text-gradient">{unlimited ? "∞" : balance}</div>
         <p className="text-muted-foreground mt-1">{unlimited ? "Créditos ilimitados activos" : "Créditos disponibles"}</p>
-        <div className="mt-3 text-xs text-muted-foreground">Sincronizado con la nube</div>
+        <div className="mt-2 inline-flex items-center gap-2">
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${planLabel === "Admin" ? "bg-primary/20 text-primary" : planLabel === "Pro" ? "bg-accent/20 text-accent-foreground" : "bg-muted text-muted-foreground"}`}>
+            Plan: {planLabel}
+          </span>
+        </div>
+        <div className="mt-2 text-xs text-muted-foreground">Sincronizado con la nube</div>
+        {isAdmin && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-3"
+            disabled={reloading}
+            onClick={async () => {
+              setReloading(true);
+              try {
+                if (!supabaseClient || !user) throw new Error("Sin sesión");
+                const { error } = await supabaseClient.rpc("add_credits", {
+                  _target_user: user.id,
+                  _amount: 100,
+                  _reason: "Recarga debug admin",
+                });
+                if (error) throw error;
+                toast.success("Créditos recargados (+100)");
+              } catch (e: any) {
+                toast.error(e?.message ?? "Error recargando");
+              } finally {
+                setReloading(false);
+              }
+            }}
+          >
+            {reloading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
+            Recargar créditos (admin)
+          </Button>
+        )}
       </div>
 
       <section>
