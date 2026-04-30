@@ -698,6 +698,40 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
           maxSize={45}
           className="h-full flex flex-col bg-card/20"
         >
+          {/* Quick prompt bar – always visible at top */}
+          {!hasApp && (
+            <div className="shrink-0 border-b border-border bg-gradient-to-r from-primary/5 to-violet-500/5 p-3 space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span className="text-xs font-semibold">Describe tu app</span>
+              </div>
+              <Textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Ej: Una landing page para mi tienda online con catálogo y carrito…"
+                rows={3}
+                className="resize-none text-xs min-h-[64px]"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey))
+                    runAction("generate", "full_app");
+                }}
+              />
+              <Button
+                onClick={() => runAction("generate", "full_app")}
+                disabled={loading || !prompt.trim()}
+                className="w-full h-9 bg-gradient-primary border-0 text-sm font-medium"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Rocket className="h-4 w-4 mr-2" /> Generar app ({CREDIT_COSTS.full_app}c)
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
           {/* Tab bar */}
           <div className="flex items-center gap-0.5 px-1.5 h-9 min-h-[2.25rem] border-b border-border bg-card/30 shrink-0 overflow-x-auto">
             {sideTabs
@@ -1102,7 +1136,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
                     disabled={loading}
                     className="flex items-center gap-1 rounded-full border border-border bg-background/50 px-2 py-0.5 text-[10px] hover:border-primary/40 hover:bg-primary/5 transition whitespace-nowrap shrink-0 disabled:opacity-50"
                   >
-                    <s.icon className="h-3 w-3 text-primary/70" /> {s.label}
+                    <s.icon className="h-3 w-3 text-primary/70" /> {s.label} <span className="text-primary/60 ml-0.5">Aplicar</span>
                   </button>
                 ))}
               </div>
