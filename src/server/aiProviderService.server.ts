@@ -10,6 +10,7 @@ export interface ProviderRequest {
   model: string;
   systemPrompt: string;
   userPrompt: string;
+  signal?: AbortSignal;
 }
 
 export interface ProviderResponse {
@@ -44,6 +45,7 @@ async function callOpenAI(req: ProviderRequest, key: string) {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    signal: req.signal,
     body: JSON.stringify({
       model: req.model,
       messages: [
@@ -73,6 +75,7 @@ async function callGemini(req: ProviderRequest, key: string) {
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    signal: req.signal,
     body: JSON.stringify({
       systemInstruction: { role: "system", parts: [{ text: req.systemPrompt }] },
       contents: [{ role: "user", parts: [{ text: req.userPrompt }] }],
@@ -102,6 +105,7 @@ async function callClaude(req: ProviderRequest, key: string) {
       "x-api-key": key,
       "anthropic-version": "2023-06-01",
     },
+    signal: req.signal,
     body: JSON.stringify({
       model: req.model,
       max_tokens: 4000,
@@ -125,6 +129,7 @@ async function callGrok(req: ProviderRequest, key: string) {
   const res = await fetch("https://api.x.ai/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    signal: req.signal,
     body: JSON.stringify({
       model: req.model,
       messages: [
@@ -174,7 +179,7 @@ export async function callProvider(req: ProviderRequest): Promise<ProviderRespon
       ok: false,
       provider: req.provider,
       model: req.model,
-      error: e?.message || `Error desconocido contactando ${req.provider}`,
+      error: e?.name === "AbortError" ? "Timeout de generación" : e?.message || `Error desconocido contactando ${req.provider}`,
     };
   }
 }
