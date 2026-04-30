@@ -431,7 +431,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
                 onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) runAction("generate", files.length ? "generation_simple" : "full_app"); }} />
               <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                 <span>Estimado: <span className="text-foreground font-medium">{files.length ? CREDIT_COSTS.generation_simple : CREDIT_COSTS.full_app} créditos</span></span>
-                <span>Saldo: <span className={`font-medium ${!unlimited && balance < 5 ? "text-amber-400" : "text-foreground"}`}>{unlimited ? "∞" : balance}</span></span>
+                <span>Saldo: <span className={`font-medium ${!unlimited && balance < 5 ? "text-amber-400" : "text-foreground"}`}>{unlimited ? "∞ Ilimitados" : balance}</span></span>
               </div>
               <Button onClick={() => runAction("generate", files.length ? "generation_simple" : "full_app")}
                 disabled={loading || !prompt.trim()} className="w-full bg-gradient-primary border-0">
