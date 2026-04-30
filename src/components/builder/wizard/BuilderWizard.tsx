@@ -22,6 +22,8 @@ import {
   PackageSearch,
   ClipboardList,
   Wand2,
+  Terminal,
+  ListChecks,
 } from "lucide-react";
 
 export type AppType =
@@ -125,6 +127,10 @@ export function BuilderWizard({
   const [primaryColor, setPrimaryColor] = useState(COLOR_PRESETS[0].value);
   const [theme] = useState<"dark-neon" | "light" | "custom">("dark-neon");
   const [audience, setAudience] = useState("");
+  // Modo: asistente paso a paso o prompt libre avanzado.
+  const [mode, setMode] = useState<"wizard" | "pro">("wizard");
+  const [proPrompt, setProPrompt] = useState("");
+  const [proName, setProName] = useState("Mi app");
 
   const result: WizardResult = useMemo(() => {
     const base = { name, appType, description, features, primaryColor, theme, audience };
@@ -142,6 +148,21 @@ export function BuilderWizard({
 
   const insufficient = !unlimited && balance < estimatedCost;
 
+  const proValid = proPrompt.trim().length >= 12 && proName.trim().length >= 2;
+
+  const handleProGenerate = () => {
+    const base: Omit<WizardResult, "composedPrompt"> = {
+      name: proName.trim(),
+      appType: "web",
+      description: proPrompt.trim().slice(0, 200),
+      features: [],
+      primaryColor: COLOR_PRESETS[0].value,
+      theme: "dark-neon",
+      audience: "",
+    };
+    onGenerate({ ...base, composedPrompt: proPrompt.trim() });
+  };
+
   return (
     <div className="h-full overflow-auto">
       <div className="mx-auto max-w-3xl p-6 md:p-10">
@@ -154,11 +175,118 @@ export function BuilderWizard({
             <h1 className="text-lg font-semibold leading-tight">Asistente Nexa</h1>
             <p className="text-xs text-muted-foreground">Construye tu app paso a paso</p>
           </div>
-          <div className="ml-auto text-xs text-muted-foreground">
-            Paso <span className="text-foreground font-medium">{step + 1}</span>/{STEPS.length}
-          </div>
+          {mode === "wizard" && (
+            <div className="ml-auto text-xs text-muted-foreground">
+              Paso <span className="text-foreground font-medium">{step + 1}</span>/{STEPS.length}
+            </div>
+          )}
         </div>
 
+        {/* Mode toggle */}
+        <div className="mb-6 inline-flex rounded-xl border border-border/60 bg-card/40 p-1">
+          <button
+            onClick={() => setMode("wizard")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+              mode === "wizard"
+                ? "bg-gradient-to-r from-violet-500/30 to-cyan-500/20 text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <ListChecks className="h-3.5 w-3.5" />
+            Asistente paso a paso
+          </button>
+          <button
+            onClick={() => setMode("pro")}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+              mode === "pro"
+                ? "bg-gradient-to-r from-violet-500/30 to-cyan-500/20 text-foreground"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Terminal className="h-3.5 w-3.5" />
+            Prompt avanzado
+          </button>
+        </div>
+
+        {mode === "pro" ? (
+          <div className="rounded-2xl border border-border/60 bg-card/40 backdrop-blur-sm p-6 md:p-8 space-y-5 animate-fade-in">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-500/30 to-cyan-500/20 grid place-items-center border border-primary/30">
+                <Terminal className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold">Modo avanzado · Prompt completo</h2>
+                <p className="text-sm text-muted-foreground">
+                  Pega o escribe el prompt completo de tu app. Salta el asistente y envía
+                  directamente a la IA.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs uppercase tracking-wider text-muted-foreground">
+                Nombre del proyecto
+              </label>
+              <Input
+                value={proName}
+                onChange={(e) => setProName(e.target.value)}
+                placeholder="Ej: Reservas Café Luna"
+                className="h-11 bg-background/60"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs uppercase tracking-wider text-muted-foreground">
+                Prompt completo
+              </label>
+              <Textarea
+                autoFocus
+                value={proPrompt}
+                onChange={(e) => setProPrompt(e.target.value)}
+                placeholder="Describe la app completa que quieres crear…"
+                rows={14}
+                className="resize-none text-base bg-background/60 font-mono leading-relaxed"
+              />
+              <div className="text-xs text-muted-foreground">
+                {proPrompt.trim().length} caracteres · mínimo 12
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">
+                Coste estimado:{" "}
+                <span className="text-foreground font-medium">{estimatedCost} créditos</span>
+              </span>
+              <span className="text-muted-foreground">
+                Saldo:{" "}
+                <span className={`font-medium ${insufficient ? "text-amber-400" : "text-foreground"}`}>
+                  {unlimited ? "∞ Ilimitados" : balance}
+                </span>
+              </span>
+            </div>
+            {insufficient && (
+              <p className="text-xs text-amber-400">
+                No tienes suficientes créditos para generar. Recarga para continuar.
+              </p>
+            )}
+
+            <div className="flex items-center justify-between gap-2 pt-2">
+              <Button variant="ghost" onClick={() => onCancel?.()} disabled={loading} className="h-11">
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleProGenerate}
+                disabled={loading || insufficient || !proValid}
+                className="h-11 px-6 bg-gradient-to-r from-violet-500 to-cyan-500 border-0 text-white shadow-[0_0_28px_-4px_hsl(var(--primary)/0.9)]"
+              >
+                <Wand2 className="h-4 w-4 mr-2" />
+                Generar app ({estimatedCost}c)
+              </Button>
+            </div>
+          </div>
+        ) : (
+        <>
         {/* Progress */}
         <div className="mb-8">
           <div className="flex gap-1.5">
@@ -414,6 +542,8 @@ export function BuilderWizard({
             </Button>
           )}
         </div>
+        </>
+        )}
       </div>
     </div>
   );
