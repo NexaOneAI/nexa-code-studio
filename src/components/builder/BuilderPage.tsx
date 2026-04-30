@@ -221,15 +221,22 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
           const desc = isCredits
             ? "Recarga créditos para continuar."
             : refunded
-              ? `${resp.error} (se reembolsaron ${refunded} créditos)`
+              ? `Se devolvieron tus créditos automáticamente (${refunded}c). Detalle: ${resp.error}`
               : resp.error;
-          toast.error(isCredits ? "Créditos insuficientes" : "Generación falló", { description: desc });
+          toast.error(
+            isCredits
+              ? "Créditos insuficientes"
+              : refunded
+                ? "Generación falló — créditos devueltos"
+                : "Generación falló",
+            { description: desc },
+          );
           setLastError(resp.error);
           setMessages((m) => [
             ...m,
             {
               role: "ai",
-              content: `❌ ${resp.error}\n\nPuedes reintentar cambiando de proveedor en el selector superior.`,
+              content: `❌ ${resp.error}${refunded ? `\n\n💚 Se devolvieron tus créditos automáticamente (${refunded}c).` : ""}\n\nPuedes reintentar cambiando de proveedor en el selector superior.`,
             },
           ]);
           await refresh();
