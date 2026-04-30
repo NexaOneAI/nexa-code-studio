@@ -59,7 +59,8 @@ REGLAS ESTRICTAS:
 
 const MODE_INSTRUCTIONS: Record<string, string> = {
   generate: "Genera la aplicación desde cero según la petición.",
-  improve: "Mejora visualmente la app actual: tipografía, espaciados, gradientes, micro-interacciones.",
+  improve:
+    "Mejora visualmente la app actual: tipografía, espaciados, gradientes, micro-interacciones.",
   fix: "Detecta y corrige TODOS los errores de JavaScript, HTML o CSS en el código actual. Devuelve el index.html completo reparado.",
   mobile: "Optimiza la app para móvil: layout responsive, touch targets >=44px.",
   optimize: "Optimiza el rendimiento y la accesibilidad sin cambiar la funcionalidad.",
@@ -87,7 +88,10 @@ function isValidGeneration(parsed: any): boolean {
 
 function splitPromptIntoSteps(prompt: string): string {
   if (prompt.length < 900) return prompt;
-  const chunks = prompt.match(/[^.!?\n]+[.!?\n]+|[^.!?\n]+$/g)?.map((s) => s.trim()).filter(Boolean) ?? [prompt];
+  const chunks = prompt
+    .match(/[^.!?\n]+[.!?\n]+|[^.!?\n]+$/g)
+    ?.map((s) => s.trim())
+    .filter(Boolean) ?? [prompt];
   return chunks.map((chunk, i) => `Paso ${i + 1}: ${chunk}`).join("\n");
 }
 
@@ -150,28 +154,28 @@ export const generateAI = createServerFn({ method: "POST" })
           userPrompt: userMessage,
           signal: timeoutController.signal,
         });
-      if (!aiResp.ok) {
-        errors.push(`${attempt.provider}: ${aiResp.error}`);
-        continue;
-      }
-      let parsed: any;
-      try {
-        parsed = extractJson(aiResp.text);
-      } catch (e: any) {
-        errors.push(`${attempt.provider}: JSON inválido (${e.message})`);
-        continue;
-      }
-      if (!isValidGeneration(parsed)) {
-        errors.push(`${attempt.provider}: estructura inválida o HTML vacío`);
-        continue;
-      }
-      const compileCheck = assertHtmlCompiles(parsed);
-      if (!compileCheck.ok) {
-        errors.push(`${attempt.provider}: ${compileCheck.error}`);
-        continue;
-      }
-      success = { provider: attempt.provider, model: attempt.model, raw: aiResp.text, parsed };
-      break;
+        if (!aiResp.ok) {
+          errors.push(`${attempt.provider}: ${aiResp.error}`);
+          continue;
+        }
+        let parsed: any;
+        try {
+          parsed = extractJson(aiResp.text);
+        } catch (e: any) {
+          errors.push(`${attempt.provider}: JSON inválido (${e.message})`);
+          continue;
+        }
+        if (!isValidGeneration(parsed)) {
+          errors.push(`${attempt.provider}: estructura inválida o HTML vacío`);
+          continue;
+        }
+        const compileCheck = assertHtmlCompiles(parsed);
+        if (!compileCheck.ok) {
+          errors.push(`${attempt.provider}: ${compileCheck.error}`);
+          continue;
+        }
+        success = { provider: attempt.provider, model: attempt.model, raw: aiResp.text, parsed };
+        break;
       }
     } finally {
       clearTimeout(timeoutId);
@@ -184,7 +188,9 @@ export const generateAI = createServerFn({ method: "POST" })
           ? "La generación tardó demasiado. Intenta de nuevo o cambia de modelo."
           : `Todos los proveedores fallaron. Detalles: ${errors.slice(0, 4).join(" | ")}`,
         attempts: errors,
-        code: timeoutController.signal.aborted ? ("TIMEOUT" as const) : ("PROVIDERS_FAILED" as const),
+        code: timeoutController.signal.aborted
+          ? ("TIMEOUT" as const)
+          : ("PROVIDERS_FAILED" as const),
       };
     }
 
@@ -197,7 +203,11 @@ export const generateAI = createServerFn({ method: "POST" })
       return { ok: false as const, error: `No se pudo consumir créditos: ${consumeErr.message}` };
     }
     if (!consumed) {
-      return { ok: false as const, error: "Créditos insuficientes", code: "INSUFFICIENT_CREDITS" as const };
+      return {
+        ok: false as const,
+        error: "Créditos insuficientes",
+        code: "INSUFFICIENT_CREDITS" as const,
+      };
     }
 
     // 4. Persistir generación.
