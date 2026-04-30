@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { CREDIT_COSTS, CREDIT_LABELS, CreditAction } from "@/lib/credit-costs";
 import { projectsService } from "@/services/projects.service";
 import { generateAI } from "@/server/generateAI.functions";
+import { refundCreditsFn } from "@/server/credits.functions";
 import { authedHeaders } from "@/lib/auth-headers";
 import {
   AI_PROVIDERS,
@@ -247,8 +248,33 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
             description: `${provider} falló. Se usó ${resp.provider}/${resp.model}.`,
           });
         }
-        // Validar archivos antes de mostrar.
-        const validFiles = validateGeneratedFiles(resp.files as any);
+        // Validar archivos antes de mostrar. Si la validación falla,
+        // reembolsar automáticamente los créditos consumidos.
+        let validFiles: FileItem[];
+        try {
+          validFiles = validateGeneratedFiles(resp.files as any);
+        } catch (validationErr: any) {
+          try {
+            await refundCreditsFn({
+              headers: await authedHeaders(),
+              data: { amount: cost, reason: `Validación falló: ${CREDIT_LABELS[action]}` },
+            });
+            toast.error("Generación falló — créditos devueltos", {
+              description: `Se devolvieron tus créditos automáticamente (${cost}c). ${validationErr.message}`,
+            });
+            setMessages((m) => [
+              ...m,
+              {
+                role: "ai",
+                content: `❌ ${validationErr.message}\n\n💚 Se devolvieron tus créditos automáticamente (${cost}c).`,
+              },
+            ]);
+          } finally {
+            await refresh();
+          }
+          setLastError(validationErr.message);
+          return;
+        }
         result = {
           name: resp.name,
           description: resp.description,
