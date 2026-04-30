@@ -274,7 +274,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   // ── Sidebar tab items ──
   const sideTabs: { id: SideTab; icon: any; label: string; show?: boolean }[] = [
     { id: "chat", icon: MessageSquare, label: "Chat" },
-    { id: "suggestions", icon: Lightbulb, label: "Sugerencias", show: hasApp },
+    { id: "suggestions", icon: Lightbulb, label: "Sugerencias" },
     { id: "files", icon: Files, label: "Archivos", show: hasApp },
     { id: "code", icon: Eye, label: "Código", show: hasApp },
     { id: "sql", icon: Database, label: "SQL", show: !!sqlFile },
@@ -467,18 +467,30 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
                 {/* ── Suggestions tab ── */}
                 {sideTab === "suggestions" && (
                   <div className="flex-1 overflow-auto p-3 space-y-2">
-                    <h3 className="text-xs font-semibold flex items-center gap-1.5"><Lightbulb className="h-3.5 w-3.5 text-primary" /> Sugerencias IA</h3>
+                    <h3 className="text-xs font-semibold flex items-center gap-1.5"><Lightbulb className="h-3.5 w-3.5 text-primary" /> Sugerencias para mejorar esta app</h3>
+                    {!hasApp && (
+                      <p className="text-[11px] text-muted-foreground">Genera una app primero y luego aplica estas mejoras, o haz clic para generar con esa funcionalidad incluida.</p>
+                    )}
                     <div className="grid grid-cols-1 gap-1.5">
                       {SMART_SUGGESTIONS.map((s) => {
                         const Icon = s.icon;
                         return (
-                          <button key={s.label} onClick={() => applySuggestion(s)} disabled={loading}
-                            className="flex items-center gap-2.5 rounded-lg border border-border bg-background/50 p-2.5 text-left hover:border-primary/50 hover:bg-primary/5 transition disabled:opacity-50">
+                          <button key={s.label} onClick={() => {
+                            if (hasApp) {
+                              applySuggestion(s);
+                            } else {
+                              setPrompt(s.prompt);
+                              setSideTab("chat");
+                              toast.info("Prompt cargado", { description: "Haz clic en Generar app para comenzar." });
+                            }
+                          }} disabled={loading}
+                            className="flex items-center gap-2.5 rounded-lg border border-border bg-background/50 p-2.5 text-left hover:border-primary/50 hover:bg-primary/5 transition disabled:opacity-50 group">
                             <Icon className="h-4 w-4 text-primary shrink-0" />
                             <div className="flex-1 min-w-0">
                               <span className="text-xs font-medium">{s.label}</span>
                             </div>
-                            <Badge variant="outline" className="text-[9px] h-4 px-1 shrink-0">{CREDIT_COSTS.feature_medium}c</Badge>
+                            <span className="text-[10px] text-primary font-medium opacity-0 group-hover:opacity-100 transition shrink-0">Aplicar →</span>
+                            <Badge variant="outline" className="text-[9px] h-4 px-1 shrink-0">{hasApp ? CREDIT_COSTS.feature_medium : CREDIT_COSTS.full_app}c</Badge>
                           </button>
                         );
                       })}
@@ -556,7 +568,27 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
 
         {/* Right: Preview – 70% */}
         <Panel defaultSize={70} minSize={40} className="h-full flex flex-col min-w-0">
-          <PreviewPane html={html} />
+          {/* Suggestions strip above preview */}
+          {!loading && (
+            <div className="shrink-0 border-b border-border bg-card/30 px-2 py-1.5 overflow-x-auto">
+              <div className="flex items-center gap-1.5">
+                <Lightbulb className="h-3 w-3 text-primary shrink-0" />
+                <span className="text-[10px] font-medium text-muted-foreground shrink-0 mr-1">Sugerencias:</span>
+                {SMART_SUGGESTIONS.slice(0, 6).map((s) => (
+                  <button key={s.label} onClick={() => {
+                    if (hasApp) { applySuggestion(s); }
+                    else { setPrompt(s.prompt); setSideTab("chat"); }
+                  }} disabled={loading}
+                    className="flex items-center gap-1 rounded-full border border-border bg-background/50 px-2 py-0.5 text-[10px] hover:border-primary/40 hover:bg-primary/5 transition whitespace-nowrap shrink-0 disabled:opacity-50">
+                    <s.icon className="h-3 w-3 text-primary/70" /> {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex-1 min-h-0">
+            <PreviewPane html={html} />
+          </div>
         </Panel>
       </PanelGroup>
 
