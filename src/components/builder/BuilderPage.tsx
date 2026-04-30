@@ -321,6 +321,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       setStageIndex(2);
       setLoadingStage(STAGES[2]);
 
+      const headers = await authedHeaders();
+
       // Timeout real de 60s
       const controller = new AbortController();
       abortRef.current = controller;
@@ -330,7 +332,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       try {
         resp = await Promise.race([
           generateAI({
-            headers: await authedHeaders(),
+            headers,
             data: {
               provider,
               model: getModel(provider, model),
