@@ -213,6 +213,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   >("generate");
   const [lastFailedAction, setLastFailedAction] = useState<CreditAction>("full_app");
   const abortRef = useRef<AbortController | null>(null);
+  const [lastValidHtml, setLastValidHtml] = useState<string>("");
 
   useEffect(() => {
     if (exportReady) return;
@@ -241,6 +242,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       setName(proj.name);
       setFiles(proj.files);
       setCurrentProjectId(proj.id);
+      const h = proj.files.find((f: FileItem) => f.path === "index.html")?.content;
+      if (h) setLastValidHtml(h);
     });
     return () => {
       alive = false;
@@ -463,6 +466,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       }
       setFiles(newFiles);
       console.log("[Builder] Preview render triggered:", { fileCount: newFiles.length, mode });
+      const newHtml = newFiles.find((f) => f.path === "index.html")?.content || "";
+      if (newHtml) setLastValidHtml(newHtml);
 
       const pid = await persistProject(
         mode === "generate" ? result.name : name,
@@ -1103,8 +1108,13 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
               </div>
             </div>
           )}
-          <div className="flex-1 min-h-0">
-            <PreviewPane html={html} />
+          <div className="flex-1 min-h-0 relative">
+            <PreviewPane html={html || lastValidHtml} />
+          {!html && lastValidHtml && (
+            <div className="absolute top-2 left-2 z-10 bg-yellow-500/90 text-black text-xs px-2 py-1 rounded">
+              Mostrando último código válido
+            </div>
+          )}
           </div>
         </Panel>
       </PanelGroup>
