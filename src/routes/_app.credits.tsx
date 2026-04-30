@@ -11,7 +11,6 @@ import { CREDIT_PLAN_LIST, type CreditPlanId } from "@/lib/credit-plans";
 import { createMercadoPagoPreference } from "@/server/mercadoPago.functions";
 import { authedHeaders } from "@/lib/auth-headers";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
-import { supabaseClient } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 export const Route = createFileRoute("/_app/credits")({
