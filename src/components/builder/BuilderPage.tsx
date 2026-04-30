@@ -466,13 +466,6 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
     } catch (e: any) {
       const msg = e?.message || "Falló la generación";
       console.error("[Builder] Error en generación:", e);
-      // Refund on unexpected errors
-      try {
-        await refundCreditsFn({
-          headers: await authedHeaders(),
-          data: { amount: CREDIT_COSTS[action], reason: `Error: ${CREDIT_LABELS[action]}` },
-        });
-      } catch {}
       await refresh();
       setLastError(msg);
       toast.error("Error", { description: msg });
