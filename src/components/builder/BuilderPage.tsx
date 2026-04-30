@@ -242,6 +242,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       setName(proj.name);
       setFiles(proj.files);
       setCurrentProjectId(proj.id);
+      const h = proj.files.find((f: FileItem) => f.path === "index.html")?.content;
+      if (h) setLastValidHtml(h);
     });
     return () => {
       alive = false;
