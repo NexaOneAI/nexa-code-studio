@@ -47,12 +47,19 @@ REGLAS ESTRICTAS:
 4. Diseño moderno, responsive, oscuro premium con acentos azul/morado.
 5. Funcional de verdad: si es una app, JS embebido que funcione.
 6. NO incluyas markdown fences. Devuelve JSON puro.
-7. NO uses backticks dentro del HTML que rompan el JSON: usa comillas simples o escapa.`;
+7. NO uses backticks dentro del HTML que rompan el JSON: usa comillas simples o escapa.
+8. Cuando la app necesite persistencia/auth/datos, añade además estos archivos extra dentro de "files":
+   - { "path": "supabase.sql", "language": "sql", "content": "-- CREATE TABLE ... con RLS" }
+   - { "path": "manifest.webmanifest", "language": "json", "content": "{...PWA manifest...}" }
+   - { "path": "netlify.toml", "language": "toml", "content": "[build]\\n  publish = \\".\\"" }
+   - { "path": "playstore.md", "language": "markdown", "content": "Pasos para empaquetar como TWA con PWA Builder" }
+9. supabase.sql DEBE incluir RLS habilitado y políticas básicas por user_id cuando aplique.
+10. manifest.webmanifest DEBE tener name, short_name, start_url '/', display 'standalone', theme_color y background_color coherentes con el diseño.`;
 
 const MODE_INSTRUCTIONS: Record<string, string> = {
   generate: "Genera la aplicación desde cero según la petición.",
   improve: "Mejora visualmente la app actual: tipografía, espaciados, gradientes, micro-interacciones.",
-  fix: "Detecta y corrige errores de JavaScript, HTML o CSS en el código actual.",
+  fix: "Detecta y corrige TODOS los errores de JavaScript, HTML o CSS en el código actual. Devuelve el index.html completo reparado.",
   mobile: "Optimiza la app para móvil: layout responsive, touch targets >=44px.",
   optimize: "Optimiza el rendimiento y la accesibilidad sin cambiar la funcionalidad.",
   netlify: "Prepara el proyecto para deploy en Netlify: añade netlify.toml y un README.",
