@@ -2,7 +2,7 @@
  * /generate-ai — Punto ÚNICO de generación con IA.
  *
  * Responsabilidades:
- *  1. Validar créditos vía RPC `consume_credits` ANTES de llamar al proveedor.
+ *  1. Validar créditos vía RPC `consume_credits` solo después de obtener código válido.
  *  2. Recibir { provider, model, prompt, projectId, mode, context, cost, reason }.
  *  3. Ejecutar la IA correspondiente (OpenAI / Gemini / Claude / Grok).
  *  4. Fallback automático a otros proveedores disponibles si el primario falla.
@@ -29,6 +29,7 @@ const InputSchema = z.object({
 const SYSTEM_PROMPT = `Eres Nexa One Builder, un generador experto de aplicaciones web standalone.
 
 Genera SIEMPRE un único archivo HTML completo y autocontenido, listo para abrirse en un navegador.
+Prioridad absoluta: primero entrega una app mínima funcional y compilable. Si el usuario pide muchas funciones o el prompt es largo, divide internamente en pasos, implementa primero la base estable y después solo mejoras seguras que no rompan la app.
 
 REGLAS ESTRICTAS:
 1. Devuelve SOLO un objeto JSON válido con esta forma exacta:
@@ -45,7 +46,7 @@ REGLAS ESTRICTAS:
 2. El index.html DEBE ser un documento completo, con <html>, <head>, <body>.
 3. Usa Tailwind CDN: <script src="https://cdn.tailwindcss.com"></script>.
 4. Diseño moderno, responsive, oscuro premium con acentos azul/morado.
-5. Funcional de verdad: si es una app, JS embebido que funcione.
+5. Funcional de verdad: si es una app, JS embebido que funcione sin errores de sintaxis. No añadas funciones avanzadas hasta que la base esté completa y consistente.
 6. NO incluyas markdown fences. Devuelve JSON puro.
 7. NO uses backticks dentro del HTML que rompan el JSON: usa comillas simples o escapa.
 8. Cuando la app necesite persistencia/auth/datos, añade además estos archivos extra dentro de "files":
@@ -82,6 +83,27 @@ function isValidGeneration(parsed: any): boolean {
   );
   if (!html || typeof html.content !== "string" || html.content.length < 30) return false;
   return /<html|<body|<div|<main|<section/i.test(html.content);
+}
+
+function splitPromptIntoSteps(prompt: string): string {
+  if (prompt.length < 900) return prompt;
+  const chunks = prompt.match(/[^.!?\n]+[.!?\n]+|[^.!?\n]+$/g)?.map((s) => s.trim()).filter(Boolean) ?? [prompt];
+  return chunks.map((chunk, i) => `Paso ${i + 1}: ${chunk}`).join("\n");
+}
+
+function assertHtmlCompiles(parsed: any): { ok: true } | { ok: false; error: string } {
+  const html = parsed?.files?.find((f: any) => f?.path === "index.html")?.content ?? "";
+  const scripts = Array.from(html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi));
+  for (const script of scripts) {
+    const js = script[1].trim();
+    if (!js) continue;
+    try {
+      new Function(js);
+    } catch (e: any) {
+      return { ok: false, error: `JavaScript inválido: ${e?.message || "error de sintaxis"}` };
+    }
+  }
+  return { ok: true };
 }
 
 export const generateAI = createServerFn({ method: "POST" })
