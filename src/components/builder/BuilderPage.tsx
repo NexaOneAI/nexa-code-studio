@@ -165,10 +165,10 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       await new Promise((r) => setTimeout(r, 250));
       setStageIndex(2); setLoadingStage(STAGES[2]);
 
-      // Timeout 90s
+      // Timeout real de 60s
       const controller = new AbortController();
       abortRef.current = controller;
-      const timeoutId = setTimeout(() => controller.abort(), 90_000);
+      const timeoutId = setTimeout(() => controller.abort(), 60_000);
 
       let resp: any;
       try {
@@ -184,16 +184,12 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       } catch (timeoutErr: any) {
         clearTimeout(timeoutId);
         if (timeoutErr?.message === "TIMEOUT") {
-          console.error("[Builder] Generación timeout después de 90s", { provider, model, mode });
-          // Refund credits
-          try {
-            await refundCreditsFn({ headers: await authedHeaders(), data: { amount: cost, reason: `Timeout: ${CREDIT_LABELS[action]}` } });
-          } catch {}
+          console.error("[Builder] Generación timeout después de 60s", { provider, model, mode });
           await refresh();
           const msg = "La generación tardó demasiado. Intenta de nuevo o cambia de modelo.";
           setLastError(msg);
           toast.error("Timeout", { description: msg });
-          setMessages((m) => [...m, { role: "ai", content: `⏱️ ${msg}\n\n💚 Créditos devueltos (${cost}c).` }]);
+          setMessages((m) => [...m, { role: "ai", content: `⏱️ ${msg}` }]);
           return;
         }
         throw timeoutErr;
@@ -205,6 +201,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       if (!resp.ok) {
         const isCredits = (resp as any).code === "INSUFFICIENT_CREDITS";
         const refunded = (resp as any).refunded as number | undefined;
+        console.error("[Builder] Generación falló:", resp);
         toast.error(isCredits ? "Créditos insuficientes" : refunded ? "Generación falló — créditos devueltos" : "Generación falló", { description: isCredits ? "Recarga créditos para continuar." : refunded ? `Créditos devueltos (${refunded}c). ${resp.error}` : resp.error });
         setLastError(resp.error);
         setMessages((m) => [...m, { role: "ai", content: `❌ ${resp.error}${refunded ? `\n\n💚 Créditos devueltos (${refunded}c).` : ""}` }]);
