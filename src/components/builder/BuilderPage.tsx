@@ -457,9 +457,35 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
                 </div>
               ))}
               {loading && (
-                <div className="rounded-lg bg-background/50 border border-border p-3 text-sm flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>{loadingStage || "Nexa está construyendo…"}</span>
+                <div className="rounded-lg bg-background/50 border border-primary/30 p-3 text-sm space-y-2 shadow-[0_0_24px_-12px_hsl(var(--primary)/0.6)]">
+                  <div className="flex items-center gap-2 text-foreground/90">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span className="font-medium">{loadingStage || "Nexa está construyendo…"}</span>
+                  </div>
+                  <ul className="space-y-1 pl-1">
+                    {STAGES.map((s, i) => (
+                      <li key={s} className={`flex items-center gap-2 text-[11px] ${i < stageIndex ? "text-primary" : i === stageIndex ? "text-foreground" : "text-muted-foreground"}`}>
+                        <span className={`inline-block h-1.5 w-1.5 rounded-full ${i < stageIndex ? "bg-primary" : i === stageIndex ? "bg-primary animate-pulse" : "bg-muted"}`} />
+                        {s}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {!loading && lastError && (
+                <div className="rounded-lg bg-destructive/10 border border-destructive/40 p-3 text-sm space-y-2">
+                  <div className="text-xs text-destructive font-medium">Error en la última generación</div>
+                  <p className="text-[11px] text-muted-foreground line-clamp-3">{lastError}</p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs border-primary/40"
+                    onClick={() => runAction("fix", "fix_errors", "Detecta y repara automáticamente todos los errores del código actual.")}
+                    disabled={files.length === 0}
+                  >
+                    <Wrench className="h-3.5 w-3.5 mr-1" />
+                    Reparar con IA
+                  </Button>
                 </div>
               )}
               <div ref={chatEndRef} />
