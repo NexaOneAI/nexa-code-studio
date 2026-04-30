@@ -1108,7 +1108,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
               </div>
             </div>
           )}
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-0 relative">
             <PreviewPane html={html || lastValidHtml} />
           {!html && lastValidHtml && (
             <div className="absolute top-2 left-2 z-10 bg-yellow-500/90 text-black text-xs px-2 py-1 rounded">
