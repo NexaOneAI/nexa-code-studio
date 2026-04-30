@@ -66,7 +66,7 @@ export function usePaymentNotifications(opts: {
 
       // 2. Realtime: dispara al insert/update con status=approved
       const ch = supabaseClient!
-        .channel(`purchases-${uid}`)
+        .channel(`purchases-${uid}-${Date.now()}`)
         .on(
           "postgres_changes",
           {

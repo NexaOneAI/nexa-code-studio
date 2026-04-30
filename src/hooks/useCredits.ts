@@ -29,8 +29,9 @@ export function useCredits() {
       supabaseClient.auth.getSession().then(({ data }) => {
         const uid = data.session?.user.id;
         if (!uid) return;
+        const chName = `credits-${uid}-${Date.now()}`;
         const ch = supabaseClient!
-          .channel("credits-" + uid)
+          .channel(chName)
           .on(
             "postgres_changes",
             { event: "*", schema: "public", table: "credits", filter: `user_id=eq.${uid}` },
