@@ -70,15 +70,15 @@ export function PreviewPane({ html }: { html: string }) {
           </Button>
         </div>
       </div>
-      <div className="flex-1 overflow-auto bg-muted/30 p-4 flex items-start justify-center">
+      <div className="flex-1 overflow-hidden bg-muted/20 flex items-stretch justify-center">
         <iframe
           key={key}
           ref={ref}
           srcDoc={srcDoc}
           title="Preview"
           sandbox="allow-scripts allow-forms"
-          style={{ width: SIZES[mode].w, maxWidth: "100%" }}
-          className="h-full min-h-[500px] rounded-lg border border-border bg-white shadow-elevated"
+          style={{ width: SIZES[mode].w, maxWidth: "100%", height: "100%" }}
+          className="bg-white border-0"
         />
       </div>
     </div>

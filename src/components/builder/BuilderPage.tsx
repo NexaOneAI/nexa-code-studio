@@ -4,10 +4,7 @@ import { useCredits } from "@/hooks/useCredits";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Group, Panel as RawPanel, Separator } from "react-resizable-panels";
-const PanelGroup = Group as any;
-const Panel = RawPanel as any;
-const PanelResizeHandle = Separator as any;
+
 import { PreviewPane } from "./PreviewPane";
 import { CodeEditor, FileItem } from "./CodeEditor";
 import { exportProjectZip, preloadExportZipDeps, isExportZipReady } from "@/lib/exportZip";
@@ -289,14 +286,12 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         </div>
       </div>
 
-      {/* ── Main: Sidebar (chat) | Preview ── */}
-      <div className="flex-1 flex min-h-0">
-        <PanelGroup direction="horizontal" className="flex-1">
-          {/* Left sidebar: Chat + tabs */}
-          <Panel defaultSize={30} minSize={20} maxSize={45}>
-            <div className="h-full flex flex-col bg-card/20 border-r border-border">
-              {/* Sidebar tab bar */}
-              <div className="flex items-center gap-0.5 px-1 h-8 min-h-[2rem] border-b border-border bg-card/30 shrink-0 overflow-x-auto">
+      {/* ── Main: Chat (fixed 340px) | Preview (flex-1) ── */}
+      <div className="flex-1 flex flex-row min-h-0 overflow-hidden">
+        {/* Left: Chat panel – fixed width */}
+        <div className="w-[340px] min-w-[300px] max-w-[420px] shrink-0 h-full flex flex-col bg-card/20 border-r border-border">
+              {/* Tab bar */}
+              <div className="flex items-center gap-0.5 px-1.5 h-9 min-h-[2.25rem] border-b border-border bg-card/30 shrink-0 overflow-x-auto">
                 {sideTabs.filter((t) => t.show !== false).map((t) => (
                   <button key={t.id} onClick={() => setSideTab(t.id)}
                     className={`flex items-center gap-1 px-1.5 py-1 text-[10px] rounded transition whitespace-nowrap ${sideTab === t.id ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground hover:text-foreground"}`}>
@@ -305,8 +300,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
                 ))}
               </div>
 
-              {/* Sidebar content */}
-              <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+              {/* Content */}
+              <div className="flex-1 overflow-hidden flex flex-col">
                 {/* ── Chat tab ── */}
                 {sideTab === "chat" && (
                   <div className="flex-1 flex flex-col min-h-0">
@@ -494,18 +489,12 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
                   </div>
                 )}
               </div>
-            </div>
-          </Panel>
+        </div>
 
-          <PanelResizeHandle className="w-px bg-border hover:bg-primary/50 transition" />
-
-          {/* Right: Preview (large) */}
-          <Panel defaultSize={70} minSize={40}>
-            <div className="h-full flex flex-col">
-              <PreviewPane html={html} />
-            </div>
-          </Panel>
-        </PanelGroup>
+        {/* Right: Preview – fills remaining space */}
+        <div className="flex-1 h-full flex flex-col min-w-0">
+          <PreviewPane html={html} />
+        </div>
       </div>
 
       <Sheet open={publishOpen} onOpenChange={setPublishOpen}>
