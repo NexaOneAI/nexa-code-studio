@@ -2,7 +2,7 @@
  * /generate-ai — Punto ÚNICO de generación con IA.
  *
  * Responsabilidades:
- *  1. Validar créditos vía RPC `consume_credits` ANTES de llamar al proveedor.
+ *  1. Validar créditos vía RPC `consume_credits` solo después de obtener código válido.
  *  2. Recibir { provider, model, prompt, projectId, mode, context, cost, reason }.
  *  3. Ejecutar la IA correspondiente (OpenAI / Gemini / Claude / Grok).
  *  4. Fallback automático a otros proveedores disponibles si el primario falla.
@@ -18,7 +18,7 @@ import { callProvider, extractJson, type AIProviderId } from "./aiProviderServic
 const InputSchema = z.object({
   provider: z.enum(["openai", "gemini", "claude", "grok"]),
   model: z.string().min(1).max(80),
-  prompt: z.string().min(3).max(4000),
+  prompt: z.string().min(3).max(12000),
   context: z.string().max(20000).optional(),
   mode: z.enum(["generate", "improve", "fix", "mobile", "optimize", "netlify"]).default("generate"),
   projectId: z.string().uuid().optional(),
@@ -29,6 +29,7 @@ const InputSchema = z.object({
 const SYSTEM_PROMPT = `Eres Nexa One Builder, un generador experto de aplicaciones web standalone.
 
 Genera SIEMPRE un único archivo HTML completo y autocontenido, listo para abrirse en un navegador.
+Prioridad absoluta: primero entrega una app mínima funcional y compilable. Si el usuario pide muchas funciones o el prompt es largo, divide internamente en pasos, implementa primero la base estable y después solo mejoras seguras que no rompan la app.
 
 REGLAS ESTRICTAS:
 1. Devuelve SOLO un objeto JSON válido con esta forma exacta:
@@ -45,7 +46,7 @@ REGLAS ESTRICTAS:
 2. El index.html DEBE ser un documento completo, con <html>, <head>, <body>.
 3. Usa Tailwind CDN: <script src="https://cdn.tailwindcss.com"></script>.
 4. Diseño moderno, responsive, oscuro premium con acentos azul/morado.
-5. Funcional de verdad: si es una app, JS embebido que funcione.
+5. Funcional de verdad: si es una app, JS embebido que funcione sin errores de sintaxis. No añadas funciones avanzadas hasta que la base esté completa y consistente.
 6. NO incluyas markdown fences. Devuelve JSON puro.
 7. NO uses backticks dentro del HTML que rompan el JSON: usa comillas simples o escapa.
 8. Cuando la app necesite persistencia/auth/datos, añade además estos archivos extra dentro de "files":
@@ -58,7 +59,8 @@ REGLAS ESTRICTAS:
 
 const MODE_INSTRUCTIONS: Record<string, string> = {
   generate: "Genera la aplicación desde cero según la petición.",
-  improve: "Mejora visualmente la app actual: tipografía, espaciados, gradientes, micro-interacciones.",
+  improve:
+    "Mejora visualmente la app actual: tipografía, espaciados, gradientes, micro-interacciones.",
   fix: "Detecta y corrige TODOS los errores de JavaScript, HTML o CSS en el código actual. Devuelve el index.html completo reparado.",
   mobile: "Optimiza la app para móvil: layout responsive, touch targets >=44px.",
   optimize: "Optimiza el rendimiento y la accesibilidad sin cambiar la funcionalidad.",
@@ -84,6 +86,38 @@ function isValidGeneration(parsed: any): boolean {
   return /<html|<body|<div|<main|<section/i.test(html.content);
 }
 
+function splitPromptIntoSteps(prompt: string): string {
+  if (prompt.length < 900) return prompt;
+  const chunks = prompt
+    .match(/[^.!?\n]+[.!?\n]+|[^.!?\n]+$/g)
+    ?.map((s) => s.trim())
+    .filter(Boolean) ?? [prompt];
+  return chunks.map((chunk, i) => `Paso ${i + 1}: ${chunk}`).join("\n");
+}
+
+function assertHtmlCompiles(parsed: any): { ok: true } | { ok: false; error: string } {
+  const html = parsed?.files?.find((f: any) => f?.path === "index.html")?.content ?? "";
+  const scripts = Array.from(html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi));
+  for (const script of scripts as RegExpMatchArray[]) {
+    const js = script[1].trim();
+    if (!js) continue;
+    const pairs: Array<[string, string]> = [
+      ["(", ")"],
+      ["{", "}"],
+      ["[", "]"],
+    ];
+    for (const [open, close] of pairs) {
+      const opens = (js.match(new RegExp(`\\${open}`, "g")) ?? []).length;
+      const closes = (js.match(new RegExp(`\\${close}`, "g")) ?? []).length;
+      if (opens !== closes)
+        return { ok: false, error: "JavaScript inválido: delimitadores incompletos" };
+    }
+    if (/\b(import|export)\s+/m.test(js))
+      return { ok: false, error: "JavaScript inválido para HTML standalone" };
+  }
+  return { ok: true };
+}
+
 export const generateAI = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => InputSchema.parse(d))
@@ -91,30 +125,17 @@ export const generateAI = createServerFn({ method: "POST" })
     const { supabase, userId } = context as { supabase: any; userId: string };
     const primary = data.provider as AIProviderId;
 
-    // 1. Consumir créditos vía RPC ANTES de llamar al proveedor.
-    const { data: consumed, error: consumeErr } = await supabase.rpc("consume_credits", {
-      _amount: data.cost,
-      _reason: `${data.reason} · ${primary}/${data.model}`,
-    });
-    if (consumeErr) {
-      return { ok: false as const, error: `No se pudo consumir créditos: ${consumeErr.message}` };
-    }
-    if (!consumed) {
-      return {
-        ok: false as const,
-        error: "Créditos insuficientes",
-        code: "INSUFFICIENT_CREDITS" as const,
-      };
-    }
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), 59_000);
 
-    // 2. Construir el prompt unificado.
+    // 1. Construir el prompt unificado.
     const userMessage = [
-      MODE_INSTRUCTIONS[data.mode],
+      `${MODE_INSTRUCTIONS[data.mode]} Primero crea una base mínima funcional y compilable. Luego integra pasos adicionales solo si no comprometen la estabilidad.`,
       data.context ? `\n\n--- CÓDIGO ACTUAL ---\n${data.context}\n--- FIN ---` : "",
-      `\n\nPETICIÓN DEL USUARIO:\n${data.prompt}`,
+      `\n\nPETICIÓN DEL USUARIO DIVIDIDA EN PASOS INTERNOS:\n${splitPromptIntoSteps(data.prompt)}`,
     ].join("");
 
-    // 3. Cadena de intentos: primario primero, luego el resto como fallback.
+    // 2. Cadena de intentos: primario primero, luego el resto como fallback.
     const attemptOrder: Array<{ provider: AIProviderId; model: string }> = [
       { provider: primary, model: data.model },
       ...ALL_PROVIDERS.filter((p) => p !== primary).map((p) => ({
@@ -131,44 +152,69 @@ export const generateAI = createServerFn({ method: "POST" })
       parsed: any;
     } | null = null;
 
-    for (const attempt of attemptOrder) {
-      const aiResp = await callProvider({
-        provider: attempt.provider,
-        model: attempt.model,
-        systemPrompt: SYSTEM_PROMPT,
-        userPrompt: userMessage,
-      });
-      if (!aiResp.ok) {
-        errors.push(`${attempt.provider}: ${aiResp.error}`);
-        continue;
+    try {
+      for (const attempt of attemptOrder) {
+        if (timeoutController.signal.aborted) break;
+        const aiResp = await callProvider({
+          provider: attempt.provider,
+          model: attempt.model,
+          systemPrompt: SYSTEM_PROMPT,
+          userPrompt: userMessage,
+          signal: timeoutController.signal,
+        });
+        if (!aiResp.ok) {
+          errors.push(`${attempt.provider}: ${aiResp.error}`);
+          continue;
+        }
+        let parsed: any;
+        try {
+          parsed = extractJson(aiResp.text);
+        } catch (e: any) {
+          errors.push(`${attempt.provider}: JSON inválido (${e.message})`);
+          continue;
+        }
+        if (!isValidGeneration(parsed)) {
+          errors.push(`${attempt.provider}: estructura inválida o HTML vacío`);
+          continue;
+        }
+        const compileCheck = assertHtmlCompiles(parsed);
+        if (!compileCheck.ok) {
+          errors.push(`${attempt.provider}: ${compileCheck.error}`);
+          continue;
+        }
+        success = { provider: attempt.provider, model: attempt.model, raw: aiResp.text, parsed };
+        break;
       }
-      let parsed: any;
-      try {
-        parsed = extractJson(aiResp.text);
-      } catch (e: any) {
-        errors.push(`${attempt.provider}: JSON inválido (${e.message})`);
-        continue;
-      }
-      if (!isValidGeneration(parsed)) {
-        errors.push(`${attempt.provider}: estructura inválida o HTML vacío`);
-        continue;
-      }
-      success = { provider: attempt.provider, model: attempt.model, raw: aiResp.text, parsed };
-      break;
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     if (!success) {
-      // Reembolso automático: ningún proveedor entregó un resultado válido.
-      // Para usuarios ilimitados queda registrado a 0 (auditoría).
-      await supabase.rpc("refund_credits", {
-        _amount: data.cost,
-        _reason: `${data.reason} · fallo total de proveedores`,
-      });
       return {
         ok: false as const,
-        error: `Todos los proveedores fallaron. Créditos reembolsados. Detalles: ${errors.slice(0, 4).join(" | ")}`,
+        error: timeoutController.signal.aborted
+          ? "La generación tardó demasiado. Intenta de nuevo o cambia de modelo."
+          : `Todos los proveedores fallaron. Detalles: ${errors.slice(0, 4).join(" | ")}`,
         attempts: errors,
-        refunded: data.cost,
+        code: timeoutController.signal.aborted
+          ? ("TIMEOUT" as const)
+          : ("PROVIDERS_FAILED" as const),
+      };
+    }
+
+    // 3. Cobrar solo después de obtener código válido y compilable.
+    const { data: consumed, error: consumeErr } = await supabase.rpc("consume_credits", {
+      _amount: data.cost,
+      _reason: `${data.reason} · ${success.provider}/${success.model}`,
+    });
+    if (consumeErr) {
+      return { ok: false as const, error: `No se pudo consumir créditos: ${consumeErr.message}` };
+    }
+    if (!consumed) {
+      return {
+        ok: false as const,
+        error: "Créditos insuficientes",
+        code: "INSUFFICIENT_CREDITS" as const,
       };
     }
 
