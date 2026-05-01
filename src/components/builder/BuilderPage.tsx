@@ -1005,7 +1005,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
                 <div className="border-t border-border p-2.5 space-y-2 shrink-0 bg-card/30">
                   <Textarea
                     value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
+                    onChange={(e) => setPrompt(e.target.value.slice(0, 3500))}
+                    maxLength={3500}
                     placeholder={
                       hasApp
                         ? "Pídele a Nexa que modifique tu app…"
@@ -1019,6 +1020,9 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
                     }}
                   />
                   <div className="flex items-center gap-2">
+                    <span className={`text-[10px] shrink-0 ${prompt.length > 3300 ? "text-destructive" : "text-muted-foreground"}`}>
+                      {prompt.length}/3500
+                    </span>
                     <Button
                       onClick={() =>
                         runAction("generate", hasApp ? "generation_simple" : "full_app")
