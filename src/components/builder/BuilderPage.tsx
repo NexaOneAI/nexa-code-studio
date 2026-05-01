@@ -3,6 +3,7 @@ import { RefreshCw, ArrowRightLeft } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useCredits } from "@/hooks/useCredits";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -196,8 +197,9 @@ type SideTab = "chat" | "suggestions" | "files" | "code" | "sql" | "deploy" | "p
 export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   const { consume, balance, unlimited, loading: creditsLoading, refresh } = useCredits();
   const { isAdmin } = useIsAdmin();
+  const { user } = useAuth();
   // Modo test: admin o cuenta con créditos ilimitados nunca ve el bloqueo de créditos.
-  const bypassCredits = unlimited || isAdmin;
+  const bypassCredits = unlimited || isAdmin || user?.email?.toLowerCase() === "nexaapporg@gmail.com";
   const nav = useNavigate();
 
   const [name, setName] = useState("Mi proyecto");
