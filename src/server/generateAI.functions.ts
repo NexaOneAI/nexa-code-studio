@@ -212,6 +212,10 @@ export const generateAI = createServerFn({ method: "POST" })
     }
 
     if (!success) {
+      console.error("[Builder] error si falla", {
+        timeout: timeoutController.signal.aborted,
+        errors: errors.slice(0, 4),
+      });
       return {
         ok: false as const,
         error: timeoutController.signal.aborted
