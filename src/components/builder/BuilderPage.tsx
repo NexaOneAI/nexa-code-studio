@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { RefreshCw, ArrowRightLeft } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useCredits } from "@/hooks/useCredits";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -184,7 +185,10 @@ type BuilderMode = "quick" | "guided";
 type SideTab = "chat" | "suggestions" | "files" | "code" | "sql" | "deploy" | "playstore";
 
 export function BuilderPage({ projectId }: { projectId?: string } = {}) {
-  const { consume, balance, unlimited, refresh } = useCredits();
+  const { consume, balance, unlimited, loading: creditsLoading, refresh } = useCredits();
+  const { isAdmin } = useIsAdmin();
+  // Modo test: admin o cuenta con créditos ilimitados nunca ve el bloqueo de créditos.
+  const bypassCredits = unlimited || isAdmin;
   const nav = useNavigate();
 
   const [name, setName] = useState("Mi proyecto");
@@ -313,7 +317,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       return;
     }
     const cost = CREDIT_COSTS[action];
-    if (!unlimited && balance < cost) {
+    // Nunca bloquear cuando: créditos ilimitados, admin, o aún cargando el balance inicial.
+    if (!bypassCredits && !creditsLoading && balance < cost) {
       toast.error("Créditos insuficientes", {
         description: `Necesitas ${cost} créditos. Tienes ${balance}.`,
       });
