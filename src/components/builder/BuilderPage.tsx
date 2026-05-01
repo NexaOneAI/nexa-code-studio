@@ -1215,8 +1215,45 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
           <div className="flex-1 min-h-0 relative">
             <PreviewPane html={html || lastValidHtml} />
           {!html && lastValidHtml && (
-            <div className="absolute top-2 left-2 z-10 bg-yellow-500/90 text-black text-xs px-2 py-1 rounded">
-              Mostrando último código válido
+            <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
+              <span className="bg-yellow-500/90 text-black text-xs px-2 py-1 rounded shadow">
+                Mostrando último código válido
+              </span>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-7 text-xs shadow"
+                disabled={loading}
+                onClick={() =>
+                  runAction(
+                    "fix",
+                    "fix_errors",
+                    "Repara el preview: detecta y corrige errores de HTML/CSS/JS para que el index.html cargue y se renderice correctamente.",
+                  )
+                }
+              >
+                <Wrench className="h-3.5 w-3.5 mr-1" /> Reparar preview
+              </Button>
+            </div>
+          )}
+          {hasApp && html && (
+            <div className="absolute bottom-2 right-2 z-10">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px] bg-background/80 backdrop-blur shadow"
+                disabled={loading}
+                onClick={() =>
+                  runAction(
+                    "fix",
+                    "fix_errors",
+                    "Repara el preview: detecta y corrige errores de HTML/CSS/JS del index.html actual sin agregar features nuevas.",
+                  )
+                }
+                title="Repara errores del preview con IA"
+              >
+                <Wrench className="h-3.5 w-3.5 mr-1" /> Reparar preview
+              </Button>
             </div>
           )}
           </div>
