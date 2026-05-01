@@ -49,7 +49,7 @@ REGLAS ESTRICTAS:
 }
 
 2. El index.html DEBE incluir estos bloques reales: <!doctype html>, <html>, <head>, <body> y al menos un <script> embebido sin src.
-3. Todo el CSS debe ir dentro de <style> o clases inline/Tailwind CDN. Todo el JS debe ir dentro de <script> en el mismo archivo.
+3. Incluye CSS real dentro de <style>. Todo el JS debe ir dentro de <script> en el mismo archivo.
 4. Diseño moderno, responsive y usable. Botones visibles con estados y acciones reales.
 5. Funcional de verdad: JS vanilla embebido que funcione sin errores de sintaxis. NO uses import/export, módulos ES, JSX ni transpilación. No dejes botones sin listener/acción.
 6. NO incluyas markdown fences. Devuelve JSON puro.
