@@ -311,9 +311,16 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
     action: CreditAction,
     userPrompt?: string,
   ) => {
-    const finalPrompt = userPrompt ?? prompt;
-    if (!finalPrompt.trim() && mode === "generate") {
+    const rawPrompt = (userPrompt ?? prompt) || "";
+    const finalPrompt = rawPrompt.trim();
+    if (!finalPrompt && mode === "generate") {
       toast.error("Escribe qué quieres construir");
+      return;
+    }
+    if (finalPrompt.length > 3500) {
+      toast.error("Prompt demasiado largo", {
+        description: `Máximo 3500 caracteres. Tienes ${finalPrompt.length}. Acórtalo y vuelve a intentar.`,
+      });
       return;
     }
     const cost = CREDIT_COSTS[action];
