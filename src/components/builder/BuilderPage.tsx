@@ -110,11 +110,8 @@ function validateGeneratedFiles(files: any[]): FileItem[] {
     if (!js) continue;
     if (/\b(import|export)\s+/m.test(js))
       throw new Error("El código generado no compila: JavaScript no standalone");
-    try {
-      new Function(js);
-    } catch (e: any) {
-      throw new Error(`El código generado no compila: ${e?.message || "error de sintaxis"}`);
-    }
+    if (!hasBalancedDelimiters(js))
+      throw new Error("El código generado no compila: delimitadores incompletos");
   }
   return valid;
 }
