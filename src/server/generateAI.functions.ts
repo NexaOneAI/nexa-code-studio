@@ -139,6 +139,7 @@ export const generateAI = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context as { supabase: any; userId: string };
     const primary = data.provider as AIProviderId;
+    console.log("[Builder] prompt recibido", { chars: data.prompt.length, mode: data.mode, provider: primary, model: data.model });
 
     const timeoutController = new AbortController();
     const timeoutId = setTimeout(() => timeoutController.abort(), 59_000);
@@ -170,6 +171,7 @@ export const generateAI = createServerFn({ method: "POST" })
     try {
       for (const attempt of attemptOrder) {
         if (timeoutController.signal.aborted) break;
+        console.log("[Builder] llamada IA iniciada", { provider: attempt.provider, model: attempt.model });
         const aiResp = await callProvider({
           provider: attempt.provider,
           model: attempt.model,
@@ -181,9 +183,11 @@ export const generateAI = createServerFn({ method: "POST" })
           errors.push(`${attempt.provider}: ${aiResp.error}`);
           continue;
         }
+        console.log("[Builder] respuesta recibida", { provider: attempt.provider, model: attempt.model, chars: aiResp.text.length });
         let parsed: any;
         try {
           parsed = extractJson(aiResp.text);
+          console.log("[Builder] código extraído", { provider: attempt.provider, files: parsed?.files?.length ?? 0 });
         } catch (e: any) {
           errors.push(`${attempt.provider}: JSON inválido (${e.message})`);
           continue;
@@ -193,6 +197,7 @@ export const generateAI = createServerFn({ method: "POST" })
           errors.push(`${attempt.provider}: ${htmlCheck.error}`);
           continue;
         }
+        console.log("[Builder] HTML validado", { provider: attempt.provider, bytes: htmlCheck.html.length });
         const compileCheck = assertHtmlCompiles(parsed);
         if (!compileCheck.ok) {
           errors.push(`${attempt.provider}: ${compileCheck.error}`);
