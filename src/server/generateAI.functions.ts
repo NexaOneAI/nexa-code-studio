@@ -76,14 +76,29 @@ const FALLBACK_MODEL: Record<AIProviderId, string> = {
 };
 const ALL_PROVIDERS: AIProviderId[] = ["openai", "gemini", "claude", "grok"];
 
-/** Valida que el JSON parseado tenga al menos un index.html con HTML real. */
-function isValidGeneration(parsed: any): boolean {
-  if (!parsed || !Array.isArray(parsed.files) || parsed.files.length === 0) return false;
+/** Valida que el JSON parseado tenga un único index.html completo. */
+function validateStandaloneHtml(parsed: any): { ok: true; html: string } | { ok: false; error: string } {
+  if (!parsed || !Array.isArray(parsed.files) || parsed.files.length === 0)
+    return { ok: false, error: "Respuesta inválida: falta files" };
+  if (parsed.files.length !== 1)
+    return { ok: false, error: "Respuesta inválida: debe devolver solo index.html" };
   const html = parsed.files.find(
     (f: any) => f && typeof f.path === "string" && f.path === "index.html",
   );
-  if (!html || typeof html.content !== "string" || html.content.length < 30) return false;
-  return /<html|<body|<div|<main|<section/i.test(html.content);
+  if (!html || typeof html.content !== "string" || html.content.trim().length < 80)
+    return { ok: false, error: "Respuesta inválida: index.html vacío" };
+  const content = html.content.trim();
+  const required: Array<[RegExp, string]> = [
+    [/^\s*<!doctype\s+html>/i, "<!doctype html>"],
+    [/<html[\s>]/i, "<html>"],
+    [/<head[\s>]/i, "<head>"],
+    [/<body[\s>]/i, "<body>"],
+    [/<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/i, "<script> embebido"],
+  ];
+  for (const [pattern, label] of required) {
+    if (!pattern.test(content)) return { ok: false, error: `HTML inválido: falta ${label}` };
+  }
+  return { ok: true, html: content };
 }
 
 function splitPromptIntoSteps(prompt: string): string {
