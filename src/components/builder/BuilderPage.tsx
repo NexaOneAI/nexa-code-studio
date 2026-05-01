@@ -119,6 +119,37 @@ function validateGeneratedFiles(files: any[]): FileItem[] {
   return valid;
 }
 
+function hasBalancedDelimiters(js: string): boolean {
+  const stack: string[] = [];
+  const pairs: Record<string, string> = { "(": ")", "{": "}", "[": "]" };
+  let quote: "'" | '"' | null = null;
+  let lineComment = false;
+  let blockComment = false;
+  for (let i = 0; i < js.length; i += 1) {
+    const ch = js[i];
+    const next = js[i + 1];
+    if (lineComment) {
+      if (ch === "\n") lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (ch === "*" && next === "/") { blockComment = false; i += 1; }
+      continue;
+    }
+    if (quote) {
+      if (ch === "\\") i += 1;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "/" && next === "/") { lineComment = true; i += 1; continue; }
+    if (ch === "/" && next === "*") { blockComment = true; i += 1; continue; }
+    if (ch === "'" || ch === '"') { quote = ch; continue; }
+    if (pairs[ch]) stack.push(pairs[ch]);
+    else if ((ch === ")" || ch === "}" || ch === "]") && stack.pop() !== ch) return false;
+  }
+  return stack.length === 0 && !quote && !blockComment;
+}
+
 const PROMPT_SUGGESTIONS = [
   "Una landing page de SaaS para una app de productividad",
   "Una calculadora de propinas moderna",
