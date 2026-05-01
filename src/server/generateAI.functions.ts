@@ -64,7 +64,7 @@ const MODE_INSTRUCTIONS: Record<string, string> = {
   fix: "Detecta y corrige TODOS los errores de JavaScript, HTML o CSS en el código actual. Devuelve el index.html completo reparado.",
   mobile: "Optimiza la app para móvil: layout responsive, touch targets >=44px.",
   optimize: "Optimiza el rendimiento y la accesibilidad sin cambiar la funcionalidad.",
-  netlify: "Prepara el proyecto para deploy en Netlify: añade netlify.toml y un README.",
+  netlify: "Ajusta el index.html para que sea una app estática lista para deploy, sin añadir archivos extra.",
 };
 
 /** Modelo por defecto de cada proveedor para la cadena de fallback. */
