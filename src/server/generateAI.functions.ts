@@ -111,6 +111,40 @@ function splitPromptIntoSteps(prompt: string): string {
   return chunks.map((chunk, i) => `Paso ${i + 1}: ${chunk}`).join("\n");
 }
 
+function hasBalancedDelimiters(js: string): boolean {
+  const stack: string[] = [];
+  const pairs: Record<string, string> = { "(": ")", "{": "}", "[": "]" };
+  let quote: "'" | '"' | null = null;
+  let lineComment = false;
+  let blockComment = false;
+  for (let i = 0; i < js.length; i += 1) {
+    const ch = js[i];
+    const next = js[i + 1];
+    if (lineComment) {
+      if (ch === "\n") lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (ch === "*" && next === "/") {
+        blockComment = false;
+        i += 1;
+      }
+      continue;
+    }
+    if (quote) {
+      if (ch === "\\") i += 1;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "/" && next === "/") { lineComment = true; i += 1; continue; }
+    if (ch === "/" && next === "*") { blockComment = true; i += 1; continue; }
+    if (ch === "'" || ch === '"') { quote = ch; continue; }
+    if (pairs[ch]) stack.push(pairs[ch]);
+    else if ((ch === ")" || ch === "}" || ch === "]") && stack.pop() !== ch) return false;
+  }
+  return stack.length === 0 && !quote && !blockComment;
+}
+
 function assertHtmlCompiles(parsed: any): { ok: true } | { ok: false; error: string } {
   const html = parsed?.files?.find((f: any) => f?.path === "index.html")?.content ?? "";
   const scripts = Array.from(html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi));
@@ -119,11 +153,8 @@ function assertHtmlCompiles(parsed: any): { ok: true } | { ok: false; error: str
     if (!js) continue;
     if (/\b(import|export)\s+/m.test(js))
       return { ok: false, error: "JavaScript inválido para HTML standalone" };
-    try {
-      new Function(js);
-    } catch (e: any) {
-      return { ok: false, error: `JavaScript inválido: ${e?.message || "error de sintaxis"}` };
-    }
+    if (!hasBalancedDelimiters(js))
+      return { ok: false, error: "JavaScript inválido: delimitadores incompletos" };
   }
   return { ok: true };
 }
