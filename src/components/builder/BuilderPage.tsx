@@ -194,6 +194,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   const [loading, setLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState<string>("");
   const [stageIndex, setStageIndex] = useState<number>(-1);
+  const [phaseIndex, setPhaseIndex] = useState<number>(-1);
   const [lastError, setLastError] = useState<string | null>(null);
   const [sideTab, setSideTab] = useState<SideTab>("chat");
   const [currentProjectId, setCurrentProjectId] = useState<string | undefined>(projectId);
@@ -269,6 +270,25 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
     "Validando build",
     "Preparando exportación",
   ];
+
+  const PHASES = [
+    { key: "structure", label: "Estructura", icon: LayoutDashboard },
+    { key: "ui", label: "UI", icon: Wand2 },
+    { key: "features", label: "Funcionalidades", icon: Zap },
+  ] as const;
+
+  // Map a stage index (0..5) to a phase index (0..2) so the phase view advances
+  // alongside the existing stage logic without changing generation flow.
+  const stageToPhase = (s: number): number => {
+    if (s < 0) return -1;
+    if (s <= 1) return 0; // Analizando idea / Diseñando UI -> Estructura
+    if (s <= 2) return 1; // Generando código -> UI
+    return 2; // DB / Validando / Exportación -> Funcionalidades
+  };
+
+  useEffect(() => {
+    setPhaseIndex(stageToPhase(stageIndex));
+  }, [stageIndex]);
 
   const persistProject = async (n: string, fs: FileItem[], p: string, description?: string) => {
     const id = await projectsService.save({
@@ -806,6 +826,53 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
                         <span className="font-medium text-xs">
                           {loadingStage || "Nexa está construyendo…"}
                         </span>
+                      </div>
+                      {/* Phase progress (Estructura → UI → Funcionalidades) */}
+                      <div className="pt-1">
+                        <div className="flex items-center gap-1">
+                          {PHASES.map((p, i) => {
+                            const Icon = p.icon;
+                            const done = i < phaseIndex;
+                            const active = i === phaseIndex;
+                            return (
+                              <div key={p.key} className="flex items-center gap-1 flex-1">
+                                <div
+                                  className={`flex items-center gap-1 px-1.5 py-1 rounded-md border w-full ${
+                                    done
+                                      ? "border-primary/50 bg-primary/10 text-primary"
+                                      : active
+                                        ? "border-primary bg-primary/15 text-foreground"
+                                        : "border-border bg-muted/30 text-muted-foreground"
+                                  }`}
+                                >
+                                  <Icon
+                                    className={`h-3 w-3 shrink-0 ${active ? "animate-pulse" : ""}`}
+                                  />
+                                  <span className="text-[10px] font-medium truncate">
+                                    {p.label}
+                                  </span>
+                                  {done && <span className="text-[10px] ml-auto">✓</span>}
+                                </div>
+                                {i < PHASES.length - 1 && (
+                                  <div
+                                    className={`h-px w-2 shrink-0 ${i < phaseIndex ? "bg-primary" : "bg-border"}`}
+                                  />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-1 h-1 w-full rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full bg-primary transition-all duration-500"
+                            style={{
+                              width: `${Math.max(0, Math.min(100, ((phaseIndex + 1) / PHASES.length) * 100))}%`,
+                            }}
+                          />
+                        </div>
+                        <p className="mt-1 text-[10px] text-muted-foreground">
+                          El preview sigue disponible mientras se genera.
+                        </p>
                       </div>
                       <div className="space-y-0.5 pl-1">
                         {STAGES.map((s, i) => (
