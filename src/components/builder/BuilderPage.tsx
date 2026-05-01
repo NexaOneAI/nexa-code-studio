@@ -739,7 +739,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
               </div>
               <Textarea
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                onChange={(e) => setPrompt(e.target.value.slice(0, 3500))}
+                maxLength={3500}
                 placeholder="Ej: Una landing page para mi tienda online con catálogo y carrito…"
                 rows={3}
                 className="resize-none text-xs min-h-[64px]"
@@ -748,6 +749,9 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
                     runAction("generate", "full_app");
                 }}
               />
+              <div className={`text-[10px] text-right ${prompt.length > 3300 ? "text-destructive" : "text-muted-foreground"}`}>
+                {prompt.length}/3500
+              </div>
               <Button
                 onClick={() => runAction("generate", "full_app")}
                 disabled={loading || !prompt.trim()}
