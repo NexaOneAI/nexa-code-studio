@@ -96,6 +96,7 @@ function validateGeneratedFiles(files: any[]): FileItem[] {
     [/<html[\s>]/i, "<html>"],
     [/<head[\s>]/i, "<head>"],
     [/<body[\s>]/i, "<body>"],
+    [/<style[\s>][\s\S]*?<\/style>/i, "<style>"],
     [/<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/i, "<script> embebido"],
   ];
   for (const [pattern, label] of required) {
