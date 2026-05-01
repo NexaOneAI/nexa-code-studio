@@ -624,7 +624,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
           </SelectContent>
         </Select>
         <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-primary/30 shrink-0">
-          {unlimited ? "∞" : balance}c
+          {bypassCredits ? "∞" : balance}c
         </Badge>
 
         <div className="h-4 w-px bg-border mx-0.5 shrink-0" />
