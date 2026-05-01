@@ -194,6 +194,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   const [loading, setLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState<string>("");
   const [stageIndex, setStageIndex] = useState<number>(-1);
+  const [phaseIndex, setPhaseIndex] = useState<number>(-1);
   const [lastError, setLastError] = useState<string | null>(null);
   const [sideTab, setSideTab] = useState<SideTab>("chat");
   const [currentProjectId, setCurrentProjectId] = useState<string | undefined>(projectId);
