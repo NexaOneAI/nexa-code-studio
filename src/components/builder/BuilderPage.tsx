@@ -3,6 +3,7 @@ import { RefreshCw, ArrowRightLeft } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useCredits } from "@/hooks/useCredits";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -75,6 +76,7 @@ interface Msg {
 
 function validateGeneratedFiles(files: any[]): FileItem[] {
   if (!Array.isArray(files) || files.length === 0) throw new Error("La IA no devolvió archivos.");
+  if (files.length !== 1) throw new Error("La IA debe devolver solo index.html.");
   const valid: FileItem[] = [];
   for (const f of files) {
     if (!f || typeof f.path !== "string" || typeof f.content !== "string") continue;
@@ -89,29 +91,60 @@ function validateGeneratedFiles(files: any[]): FileItem[] {
     throw new Error("Todos los archivos generados estaban vacíos o malformados.");
   const html = valid.find((f) => f.path === "index.html");
   if (!html) throw new Error("Falta el archivo index.html en la generación.");
-  if (!/<html|<body|<div|<main|<section/i.test(html.content))
-    throw new Error("El index.html generado no contiene HTML válido.");
+  const required: Array<[RegExp, string]> = [
+    [/^\s*<!doctype\s+html>/i, "<!doctype html>"],
+    [/<html[\s>]/i, "<html>"],
+    [/<head[\s>]/i, "<head>"],
+    [/<body[\s>]/i, "<body>"],
+    [/<style[\s>][\s\S]*?<\/style>/i, "<style>"],
+    [/<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/i, "<script> embebido"],
+  ];
+  for (const [pattern, label] of required) {
+    if (!pattern.test(html.content)) throw new Error(`HTML inválido: falta ${label}`);
+  }
   const scripts = Array.from(
     html.content.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi),
   ) as RegExpMatchArray[];
   for (const script of scripts) {
     const js = script[1].trim();
     if (!js) continue;
-    const pairs: Array<[string, string]> = [
-      ["(", ")"],
-      ["{", "}"],
-      ["[", "]"],
-    ];
-    for (const [open, close] of pairs) {
-      const opens = (js.match(new RegExp(`\\${open}`, "g")) ?? []).length;
-      const closes = (js.match(new RegExp(`\\${close}`, "g")) ?? []).length;
-      if (opens !== closes)
-        throw new Error("El código generado no compila: delimitadores incompletos");
-    }
     if (/\b(import|export)\s+/m.test(js))
       throw new Error("El código generado no compila: JavaScript no standalone");
+    if (!hasBalancedDelimiters(js))
+      throw new Error("El código generado no compila: delimitadores incompletos");
   }
   return valid;
+}
+
+function hasBalancedDelimiters(js: string): boolean {
+  const stack: string[] = [];
+  const pairs: Record<string, string> = { "(": ")", "{": "}", "[": "]" };
+  let quote: "'" | '"' | null = null;
+  let lineComment = false;
+  let blockComment = false;
+  for (let i = 0; i < js.length; i += 1) {
+    const ch = js[i];
+    const next = js[i + 1];
+    if (lineComment) {
+      if (ch === "\n") lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (ch === "*" && next === "/") { blockComment = false; i += 1; }
+      continue;
+    }
+    if (quote) {
+      if (ch === "\\") i += 1;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "/" && next === "/") { lineComment = true; i += 1; continue; }
+    if (ch === "/" && next === "*") { blockComment = true; i += 1; continue; }
+    if (ch === "'" || ch === '"') { quote = ch; continue; }
+    if (pairs[ch]) stack.push(pairs[ch]);
+    else if ((ch === ")" || ch === "}" || ch === "]") && stack.pop() !== ch) return false;
+  }
+  return stack.length === 0 && !quote && !blockComment;
 }
 
 const PROMPT_SUGGESTIONS = [
@@ -187,8 +220,9 @@ type SideTab = "chat" | "suggestions" | "files" | "code" | "sql" | "deploy" | "p
 export function BuilderPage({ projectId }: { projectId?: string } = {}) {
   const { consume, balance, unlimited, loading: creditsLoading, refresh } = useCredits();
   const { isAdmin } = useIsAdmin();
+  const { user } = useAuth();
   // Modo test: admin o cuenta con créditos ilimitados nunca ve el bloqueo de créditos.
-  const bypassCredits = unlimited || isAdmin;
+  const bypassCredits = unlimited || isAdmin || user?.email?.toLowerCase() === "nexaapporg@gmail.com";
   const nav = useNavigate();
 
   const [name, setName] = useState("Mi proyecto");
@@ -359,7 +393,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       const headers = await authedHeaders();
 
       // Timeout real de 60s
-      console.log("[Builder] Prompt enviado:", { mode, provider, model, prompt: finalPrompt });
+      console.log("[Builder] prompt recibido", { mode, provider, model, chars: finalPrompt.length, prompt: finalPrompt });
+      console.log("[Builder] llamada IA iniciada", { provider, model: getModel(provider, model) });
       const controller = new AbortController();
       abortRef.current = controller;
       const timeoutId = setTimeout(() => controller.abort(), 60_000);
@@ -401,7 +436,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         abortRef.current = null;
       }
 
-      console.log("[Builder] Respuesta recibida:", { ok: resp.ok, provider: resp.provider, model: resp.model, filesCount: resp.files?.length });
+      console.log("[Builder] respuesta recibida", { ok: resp.ok, provider: resp.provider, model: resp.model, filesCount: resp.files?.length });
 
       if (!resp.ok) {
         const isCredits = (resp as any).code === "INSUFFICIENT_CREDITS";
@@ -442,18 +477,18 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         validFiles = validateGeneratedFiles(resp.files as any);
       } catch (validationErr: any) {
         try {
-          await refundCreditsFn({
+          if (!bypassCredits) await refundCreditsFn({
             headers: await authedHeaders(),
             data: { amount: cost, reason: `Validación falló: ${CREDIT_LABELS[action]}` },
           });
           toast.error("Generación falló — créditos devueltos", {
-            description: `${cost}c devueltos. ${validationErr.message}`,
+            description: `${bypassCredits ? "" : `${cost}c devueltos. `}${validationErr.message}`,
           });
           setMessages((m) => [
             ...m,
             {
               role: "ai",
-              content: `❌ ${validationErr.message}\n\n💚 Créditos devueltos (${cost}c).`,
+              content: `❌ ${validationErr.message}${bypassCredits ? "" : `\n\n💚 Créditos devueltos (${cost}c).`}`,
             },
           ]);
         } finally {
@@ -462,6 +497,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         setLastError(validationErr.message);
         return;
       }
+      console.log("[Builder] HTML validado", { files: validFiles.length, bytes: validFiles[0]?.content.length ?? 0 });
 
       result = {
         name: resp.name,
@@ -497,7 +533,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         newFiles = Array.from(map.values());
       }
       setFiles(newFiles);
-      console.log("[Builder] Preview render triggered:", { fileCount: newFiles.length, mode });
+      console.log("[Builder] preview actualizado", { fileCount: newFiles.length, mode });
       const newHtml = newFiles.find((f) => f.path === "index.html")?.content || "";
       if (newHtml) setLastValidHtml(newHtml);
 

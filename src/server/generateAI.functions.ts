@@ -26,14 +26,14 @@ const InputSchema = z.object({
   reason: z.string().min(1).max(120),
 });
 
-const SYSTEM_PROMPT = `Eres Nexa One Builder, un generador experto de aplicaciones web standalone.
+const SYSTEM_PROMPT = `Eres Nexa One Builder, un generador experto de aplicaciones web standalone en un solo archivo.
 
-Genera SIEMPRE un único archivo HTML completo y autocontenido con HTML, CSS y JavaScript puro (vanilla). NO uses React, Vue, Angular ni ningún framework JS. Solo HTML/CSS/JS puro con Tailwind CDN.
+Genera SIEMPRE un único archivo HTML completo y autocontenido con HTML, CSS y JavaScript puro (vanilla). NO uses React, Vue, Angular, Supabase, backend, APIs privadas ni frameworks JS. Solo HTML/CSS/JS puro dentro de index.html.
 Prioridad absoluta: primero entrega una app mínima funcional y compilable. Si el usuario pide muchas funciones o el prompt es largo, divide internamente en pasos, implementa primero la base estable y después solo mejoras seguras que no rompan la app.
 
 FASES DE GENERACIÓN (aplica siempre en este orden interno):
 1. ESTRUCTURA BASE: HTML semántico completo con layout y navegación.
-2. UI: Estilos Tailwind, colores, tipografía, espaciado, responsive.
+2. UI: Estilos responsive, colores, tipografía y espaciado.
 3. FUNCIONALIDADES: Lógica JS, interactividad, formularios, datos.
 Nunca saltes a la fase 3 sin que las fases 1 y 2 estén completas y estables.
 
@@ -43,25 +43,19 @@ REGLAS ESTRICTAS:
   "name": "Nombre corto del proyecto",
   "description": "Descripción de 1 línea",
   "files": [
-    { "path": "index.html", "content": "<!doctype html>...", "language": "html" },
-    { "path": "README.md", "content": "...", "language": "markdown" }
+    { "path": "index.html", "content": "<!doctype html>...", "language": "html" }
   ],
   "suggestions": ["mejora 1", "mejora 2", "mejora 3"]
 }
 
-2. El index.html DEBE ser un documento completo, con <html>, <head>, <body>.
-3. Usa Tailwind CDN: <script src="https://cdn.tailwindcss.com"></script>.
-4. Diseño moderno, responsive, oscuro premium con acentos azul/morado. Solo CSS puro y clases Tailwind.
-5. Funcional de verdad: JS vanilla embebido que funcione sin errores de sintaxis. NO uses import/export, módulos ES, JSX ni transpilación. No añadas funciones avanzadas hasta que la base esté completa y consistente.
+2. El index.html DEBE incluir estos bloques reales: <!doctype html>, <html>, <head>, <body> y al menos un <script> embebido sin src.
+3. Incluye CSS real dentro de <style>. Todo el JS debe ir dentro de <script> en el mismo archivo.
+4. Diseño moderno, responsive y usable. Botones visibles con estados y acciones reales.
+5. Funcional de verdad: JS vanilla embebido que funcione sin errores de sintaxis. NO uses import/export, módulos ES, JSX ni transpilación. No dejes botones sin listener/acción.
 6. NO incluyas markdown fences. Devuelve JSON puro.
 7. NO uses backticks dentro del HTML que rompan el JSON: usa comillas simples o escapa.
-8. Cuando la app necesite persistencia/auth/datos, añade además estos archivos extra dentro de "files":
-   - { "path": "supabase.sql", "language": "sql", "content": "-- CREATE TABLE ... con RLS" }
-   - { "path": "manifest.webmanifest", "language": "json", "content": "{...PWA manifest...}" }
-   - { "path": "netlify.toml", "language": "toml", "content": "[build]\\n  publish = \\".\\"" }
-   - { "path": "playstore.md", "language": "markdown", "content": "Pasos para empaquetar como TWA con PWA Builder" }
-9. supabase.sql DEBE incluir RLS habilitado y políticas básicas por user_id cuando aplique.
-10. manifest.webmanifest DEBE tener name, short_name, start_url '/', display 'standalone', theme_color y background_color coherentes con el diseño.`;
+8. Si la app necesita guardar datos, usa localStorage. No uses base de datos ni backend.
+9. La respuesta debe contener SOLO files[0].path = "index.html". No generes README, SQL, manifest, netlify ni otros archivos.`;
 
 const MODE_INSTRUCTIONS: Record<string, string> = {
   generate: "Genera la aplicación desde cero según la petición.",
@@ -70,7 +64,7 @@ const MODE_INSTRUCTIONS: Record<string, string> = {
   fix: "Detecta y corrige TODOS los errores de JavaScript, HTML o CSS en el código actual. Devuelve el index.html completo reparado.",
   mobile: "Optimiza la app para móvil: layout responsive, touch targets >=44px.",
   optimize: "Optimiza el rendimiento y la accesibilidad sin cambiar la funcionalidad.",
-  netlify: "Prepara el proyecto para deploy en Netlify: añade netlify.toml y un README.",
+  netlify: "Ajusta el index.html para que sea una app estática lista para deploy, sin añadir archivos extra.",
 };
 
 /** Modelo por defecto de cada proveedor para la cadena de fallback. */
@@ -82,14 +76,30 @@ const FALLBACK_MODEL: Record<AIProviderId, string> = {
 };
 const ALL_PROVIDERS: AIProviderId[] = ["openai", "gemini", "claude", "grok"];
 
-/** Valida que el JSON parseado tenga al menos un index.html con HTML real. */
-function isValidGeneration(parsed: any): boolean {
-  if (!parsed || !Array.isArray(parsed.files) || parsed.files.length === 0) return false;
+/** Valida que el JSON parseado tenga un único index.html completo. */
+function validateStandaloneHtml(parsed: any): { ok: true; html: string } | { ok: false; error: string } {
+  if (!parsed || !Array.isArray(parsed.files) || parsed.files.length === 0)
+    return { ok: false, error: "Respuesta inválida: falta files" };
+  if (parsed.files.length !== 1)
+    return { ok: false, error: "Respuesta inválida: debe devolver solo index.html" };
   const html = parsed.files.find(
     (f: any) => f && typeof f.path === "string" && f.path === "index.html",
   );
-  if (!html || typeof html.content !== "string" || html.content.length < 30) return false;
-  return /<html|<body|<div|<main|<section/i.test(html.content);
+  if (!html || typeof html.content !== "string" || html.content.trim().length < 80)
+    return { ok: false, error: "Respuesta inválida: index.html vacío" };
+  const content = html.content.trim();
+  const required: Array<[RegExp, string]> = [
+    [/^\s*<!doctype\s+html>/i, "<!doctype html>"],
+    [/<html[\s>]/i, "<html>"],
+    [/<head[\s>]/i, "<head>"],
+    [/<body[\s>]/i, "<body>"],
+    [/<style[\s>][\s\S]*?<\/style>/i, "<style>"],
+    [/<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/i, "<script> embebido"],
+  ];
+  for (const [pattern, label] of required) {
+    if (!pattern.test(content)) return { ok: false, error: `HTML inválido: falta ${label}` };
+  }
+  return { ok: true, html: content };
 }
 
 function splitPromptIntoSteps(prompt: string): string {
@@ -101,25 +111,50 @@ function splitPromptIntoSteps(prompt: string): string {
   return chunks.map((chunk, i) => `Paso ${i + 1}: ${chunk}`).join("\n");
 }
 
+function hasBalancedDelimiters(js: string): boolean {
+  const stack: string[] = [];
+  const pairs: Record<string, string> = { "(": ")", "{": "}", "[": "]" };
+  let quote: "'" | '"' | null = null;
+  let lineComment = false;
+  let blockComment = false;
+  for (let i = 0; i < js.length; i += 1) {
+    const ch = js[i];
+    const next = js[i + 1];
+    if (lineComment) {
+      if (ch === "\n") lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (ch === "*" && next === "/") {
+        blockComment = false;
+        i += 1;
+      }
+      continue;
+    }
+    if (quote) {
+      if (ch === "\\") i += 1;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "/" && next === "/") { lineComment = true; i += 1; continue; }
+    if (ch === "/" && next === "*") { blockComment = true; i += 1; continue; }
+    if (ch === "'" || ch === '"') { quote = ch; continue; }
+    if (pairs[ch]) stack.push(pairs[ch]);
+    else if ((ch === ")" || ch === "}" || ch === "]") && stack.pop() !== ch) return false;
+  }
+  return stack.length === 0 && !quote && !blockComment;
+}
+
 function assertHtmlCompiles(parsed: any): { ok: true } | { ok: false; error: string } {
   const html = parsed?.files?.find((f: any) => f?.path === "index.html")?.content ?? "";
   const scripts = Array.from(html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi));
   for (const script of scripts as RegExpMatchArray[]) {
     const js = script[1].trim();
     if (!js) continue;
-    const pairs: Array<[string, string]> = [
-      ["(", ")"],
-      ["{", "}"],
-      ["[", "]"],
-    ];
-    for (const [open, close] of pairs) {
-      const opens = (js.match(new RegExp(`\\${open}`, "g")) ?? []).length;
-      const closes = (js.match(new RegExp(`\\${close}`, "g")) ?? []).length;
-      if (opens !== closes)
-        return { ok: false, error: "JavaScript inválido: delimitadores incompletos" };
-    }
     if (/\b(import|export)\s+/m.test(js))
       return { ok: false, error: "JavaScript inválido para HTML standalone" };
+    if (!hasBalancedDelimiters(js))
+      return { ok: false, error: "JavaScript inválido: delimitadores incompletos" };
   }
   return { ok: true };
 }
@@ -128,8 +163,16 @@ export const generateAI = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => InputSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context as { supabase: any; userId: string };
+    const { supabase, userId, claims } = context as { supabase: any; userId: string; claims?: any };
     const primary = data.provider as AIProviderId;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const isTestAdmin = [claims?.email, profile?.email]
+      .some((email) => String(email || "").toLowerCase() === "nexaapporg@gmail.com");
+    console.log("[Builder] prompt recibido", { chars: data.prompt.length, mode: data.mode, provider: primary, model: data.model });
 
     const timeoutController = new AbortController();
     const timeoutId = setTimeout(() => timeoutController.abort(), 59_000);
@@ -161,6 +204,7 @@ export const generateAI = createServerFn({ method: "POST" })
     try {
       for (const attempt of attemptOrder) {
         if (timeoutController.signal.aborted) break;
+        console.log("[Builder] llamada IA iniciada", { provider: attempt.provider, model: attempt.model });
         const aiResp = await callProvider({
           provider: attempt.provider,
           model: attempt.model,
@@ -172,17 +216,21 @@ export const generateAI = createServerFn({ method: "POST" })
           errors.push(`${attempt.provider}: ${aiResp.error}`);
           continue;
         }
+        console.log("[Builder] respuesta recibida", { provider: attempt.provider, model: attempt.model, chars: aiResp.text.length });
         let parsed: any;
         try {
           parsed = extractJson(aiResp.text);
+          console.log("[Builder] código extraído", { provider: attempt.provider, files: parsed?.files?.length ?? 0 });
         } catch (e: any) {
           errors.push(`${attempt.provider}: JSON inválido (${e.message})`);
           continue;
         }
-        if (!isValidGeneration(parsed)) {
-          errors.push(`${attempt.provider}: estructura inválida o HTML vacío`);
+        const htmlCheck = validateStandaloneHtml(parsed);
+        if (!htmlCheck.ok) {
+          errors.push(`${attempt.provider}: ${htmlCheck.error}`);
           continue;
         }
+        console.log("[Builder] HTML validado", { provider: attempt.provider, bytes: htmlCheck.html.length });
         const compileCheck = assertHtmlCompiles(parsed);
         if (!compileCheck.ok) {
           errors.push(`${attempt.provider}: ${compileCheck.error}`);
@@ -196,6 +244,10 @@ export const generateAI = createServerFn({ method: "POST" })
     }
 
     if (!success) {
+      console.error("[Builder] error si falla", {
+        timeout: timeoutController.signal.aborted,
+        errors: errors.slice(0, 4),
+      });
       return {
         ok: false as const,
         error: timeoutController.signal.aborted
@@ -208,20 +260,28 @@ export const generateAI = createServerFn({ method: "POST" })
       };
     }
 
-    // 3. Cobrar solo después de obtener código válido y compilable.
-    const { data: consumed, error: consumeErr } = await supabase.rpc("consume_credits", {
-      _amount: data.cost,
-      _reason: `${data.reason} · ${success.provider}/${success.model}`,
-    });
-    if (consumeErr) {
-      return { ok: false as const, error: `No se pudo consumir créditos: ${consumeErr.message}` };
-    }
-    if (!consumed) {
-      return {
-        ok: false as const,
-        error: "Créditos insuficientes",
-        code: "INSUFFICIENT_CREDITS" as const,
-      };
+    // 3. Cobrar solo después de obtener código válido y compilable. Admin test registra sin limitar.
+    if (isTestAdmin) {
+      await supabase.from("credit_transactions").insert({
+        user_id: userId,
+        amount: 0,
+        reason: `${data.reason} · ${success.provider}/${success.model} (admin test)`,
+      });
+    } else {
+      const { data: consumed, error: consumeErr } = await supabase.rpc("consume_credits", {
+        _amount: data.cost,
+        _reason: `${data.reason} · ${success.provider}/${success.model}`,
+      });
+      if (consumeErr) {
+        return { ok: false as const, error: `No se pudo consumir créditos: ${consumeErr.message}` };
+      }
+      if (!consumed) {
+        return {
+          ok: false as const,
+          error: "Créditos insuficientes",
+          code: "INSUFFICIENT_CREDITS" as const,
+        };
+      }
     }
 
     // 4. Persistir generación.
@@ -231,7 +291,7 @@ export const generateAI = createServerFn({ method: "POST" })
       prompt: data.prompt,
       response_summary: success.parsed.description || null,
       response_full: success.raw.slice(0, 20000),
-      cost: data.cost,
+      cost: isTestAdmin ? 0 : data.cost,
       model: success.model,
       provider: success.provider,
     });
