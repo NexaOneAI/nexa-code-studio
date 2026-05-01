@@ -75,6 +75,7 @@ interface Msg {
 
 function validateGeneratedFiles(files: any[]): FileItem[] {
   if (!Array.isArray(files) || files.length === 0) throw new Error("La IA no devolvió archivos.");
+  if (files.length !== 1) throw new Error("La IA debe devolver solo index.html.");
   const valid: FileItem[] = [];
   for (const f of files) {
     if (!f || typeof f.path !== "string" || typeof f.content !== "string") continue;
@@ -89,8 +90,16 @@ function validateGeneratedFiles(files: any[]): FileItem[] {
     throw new Error("Todos los archivos generados estaban vacíos o malformados.");
   const html = valid.find((f) => f.path === "index.html");
   if (!html) throw new Error("Falta el archivo index.html en la generación.");
-  if (!/<html|<body|<div|<main|<section/i.test(html.content))
-    throw new Error("El index.html generado no contiene HTML válido.");
+  const required: Array<[RegExp, string]> = [
+    [/^\s*<!doctype\s+html>/i, "<!doctype html>"],
+    [/<html[\s>]/i, "<html>"],
+    [/<head[\s>]/i, "<head>"],
+    [/<body[\s>]/i, "<body>"],
+    [/<script(?![^>]*\bsrc=)[^>]*>[\s\S]*?<\/script>/i, "<script> embebido"],
+  ];
+  for (const [pattern, label] of required) {
+    if (!pattern.test(html.content)) throw new Error(`HTML inválido: falta ${label}`);
+  }
   const scripts = Array.from(
     html.content.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi),
   ) as RegExpMatchArray[];
