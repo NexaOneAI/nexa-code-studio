@@ -137,8 +137,9 @@ export const generateAI = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => InputSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context as { supabase: any; userId: string };
+    const { supabase, userId, claims } = context as { supabase: any; userId: string; claims?: any };
     const primary = data.provider as AIProviderId;
+    const isTestAdmin = String(claims?.email || "").toLowerCase() === "nexaapporg@gmail.com";
     console.log("[Builder] prompt recibido", { chars: data.prompt.length, mode: data.mode, provider: primary, model: data.model });
 
     const timeoutController = new AbortController();
@@ -223,20 +224,28 @@ export const generateAI = createServerFn({ method: "POST" })
       };
     }
 
-    // 3. Cobrar solo después de obtener código válido y compilable.
-    const { data: consumed, error: consumeErr } = await supabase.rpc("consume_credits", {
-      _amount: data.cost,
-      _reason: `${data.reason} · ${success.provider}/${success.model}`,
-    });
-    if (consumeErr) {
-      return { ok: false as const, error: `No se pudo consumir créditos: ${consumeErr.message}` };
-    }
-    if (!consumed) {
-      return {
-        ok: false as const,
-        error: "Créditos insuficientes",
-        code: "INSUFFICIENT_CREDITS" as const,
-      };
+    // 3. Cobrar solo después de obtener código válido y compilable. Admin test registra sin limitar.
+    if (isTestAdmin) {
+      await supabase.from("credit_transactions").insert({
+        user_id: userId,
+        amount: 0,
+        reason: `${data.reason} · ${success.provider}/${success.model} (admin test)`,
+      });
+    } else {
+      const { data: consumed, error: consumeErr } = await supabase.rpc("consume_credits", {
+        _amount: data.cost,
+        _reason: `${data.reason} · ${success.provider}/${success.model}`,
+      });
+      if (consumeErr) {
+        return { ok: false as const, error: `No se pudo consumir créditos: ${consumeErr.message}` };
+      }
+      if (!consumed) {
+        return {
+          ok: false as const,
+          error: "Créditos insuficientes",
+          code: "INSUFFICIENT_CREDITS" as const,
+        };
+      }
     }
 
     // 4. Persistir generación.
@@ -246,7 +255,7 @@ export const generateAI = createServerFn({ method: "POST" })
       prompt: data.prompt,
       response_summary: success.parsed.description || null,
       response_full: success.raw.slice(0, 20000),
-      cost: data.cost,
+      cost: isTestAdmin ? 0 : data.cost,
       model: success.model,
       provider: success.provider,
     });
