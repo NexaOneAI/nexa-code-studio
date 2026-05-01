@@ -311,9 +311,16 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
     action: CreditAction,
     userPrompt?: string,
   ) => {
-    const finalPrompt = userPrompt ?? prompt;
-    if (!finalPrompt.trim() && mode === "generate") {
+    const rawPrompt = (userPrompt ?? prompt) || "";
+    const finalPrompt = rawPrompt.trim();
+    if (!finalPrompt && mode === "generate") {
       toast.error("Escribe qué quieres construir");
+      return;
+    }
+    if (finalPrompt.length > 3500) {
+      toast.error("Prompt demasiado largo", {
+        description: `Máximo 3500 caracteres. Tienes ${finalPrompt.length}. Acórtalo y vuelve a intentar.`,
+      });
       return;
     }
     const cost = CREDIT_COSTS[action];
@@ -732,7 +739,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
               </div>
               <Textarea
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                onChange={(e) => setPrompt(e.target.value.slice(0, 3500))}
+                maxLength={3500}
                 placeholder="Ej: Una landing page para mi tienda online con catálogo y carrito…"
                 rows={3}
                 className="resize-none text-xs min-h-[64px]"
@@ -741,6 +749,9 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
                     runAction("generate", "full_app");
                 }}
               />
+              <div className={`text-[10px] text-right ${prompt.length > 3300 ? "text-destructive" : "text-muted-foreground"}`}>
+                {prompt.length}/3500
+              </div>
               <Button
                 onClick={() => runAction("generate", "full_app")}
                 disabled={loading || !prompt.trim()}
@@ -994,7 +1005,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
                 <div className="border-t border-border p-2.5 space-y-2 shrink-0 bg-card/30">
                   <Textarea
                     value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
+                    onChange={(e) => setPrompt(e.target.value.slice(0, 3500))}
+                    maxLength={3500}
                     placeholder={
                       hasApp
                         ? "Pídele a Nexa que modifique tu app…"
@@ -1008,6 +1020,9 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
                     }}
                   />
                   <div className="flex items-center gap-2">
+                    <span className={`text-[10px] shrink-0 ${prompt.length > 3300 ? "text-destructive" : "text-muted-foreground"}`}>
+                      {prompt.length}/3500
+                    </span>
                     <Button
                       onClick={() =>
                         runAction("generate", hasApp ? "generation_simple" : "full_app")
