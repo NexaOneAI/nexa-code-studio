@@ -370,7 +370,8 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
       const headers = await authedHeaders();
 
       // Timeout real de 60s
-      console.log("[Builder] Prompt enviado:", { mode, provider, model, prompt: finalPrompt });
+      console.log("[Builder] prompt recibido", { mode, provider, model, chars: finalPrompt.length, prompt: finalPrompt });
+      console.log("[Builder] llamada IA iniciada", { provider, model: getModel(provider, model) });
       const controller = new AbortController();
       abortRef.current = controller;
       const timeoutId = setTimeout(() => controller.abort(), 60_000);
@@ -412,7 +413,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         abortRef.current = null;
       }
 
-      console.log("[Builder] Respuesta recibida:", { ok: resp.ok, provider: resp.provider, model: resp.model, filesCount: resp.files?.length });
+      console.log("[Builder] respuesta recibida", { ok: resp.ok, provider: resp.provider, model: resp.model, filesCount: resp.files?.length });
 
       if (!resp.ok) {
         const isCredits = (resp as any).code === "INSUFFICIENT_CREDITS";
@@ -453,18 +454,18 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         validFiles = validateGeneratedFiles(resp.files as any);
       } catch (validationErr: any) {
         try {
-          await refundCreditsFn({
+          if (!bypassCredits) await refundCreditsFn({
             headers: await authedHeaders(),
             data: { amount: cost, reason: `Validación falló: ${CREDIT_LABELS[action]}` },
           });
           toast.error("Generación falló — créditos devueltos", {
-            description: `${cost}c devueltos. ${validationErr.message}`,
+            description: `${bypassCredits ? "" : `${cost}c devueltos. `}${validationErr.message}`,
           });
           setMessages((m) => [
             ...m,
             {
               role: "ai",
-              content: `❌ ${validationErr.message}\n\n💚 Créditos devueltos (${cost}c).`,
+              content: `❌ ${validationErr.message}${bypassCredits ? "" : `\n\n💚 Créditos devueltos (${cost}c).`}`,
             },
           ]);
         } finally {
@@ -473,6 +474,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         setLastError(validationErr.message);
         return;
       }
+      console.log("[Builder] HTML validado", { files: validFiles.length, bytes: validFiles[0]?.content.length ?? 0 });
 
       result = {
         name: resp.name,
@@ -508,7 +510,7 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
         newFiles = Array.from(map.values());
       }
       setFiles(newFiles);
-      console.log("[Builder] Preview render triggered:", { fileCount: newFiles.length, mode });
+      console.log("[Builder] preview actualizado", { fileCount: newFiles.length, mode });
       const newHtml = newFiles.find((f) => f.path === "index.html")?.content || "";
       if (newHtml) setLastValidHtml(newHtml);
 
