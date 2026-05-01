@@ -188,8 +188,9 @@ export const generateAI = createServerFn({ method: "POST" })
           errors.push(`${attempt.provider}: JSON inválido (${e.message})`);
           continue;
         }
-        if (!isValidGeneration(parsed)) {
-          errors.push(`${attempt.provider}: estructura inválida o HTML vacío`);
+        const htmlCheck = validateStandaloneHtml(parsed);
+        if (!htmlCheck.ok) {
+          errors.push(`${attempt.provider}: ${htmlCheck.error}`);
           continue;
         }
         const compileCheck = assertHtmlCompiles(parsed);
