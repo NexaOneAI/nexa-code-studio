@@ -1181,34 +1181,37 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
 
         {/* Right: Preview – 70% */}
         <Panel defaultSize={70} minSize={40} className="h-full flex flex-col min-w-0">
-          {/* Suggestions strip above preview */}
-          {!loading && (
-            <div className="shrink-0 border-b border-border bg-card/30 px-2 py-1.5 overflow-x-auto">
-              <div className="flex items-center gap-1.5">
-                <Lightbulb className="h-3 w-3 text-primary shrink-0" />
-                <span className="text-[10px] font-medium text-muted-foreground shrink-0 mr-1">
-                  Sugerencias:
-                </span>
-                {SMART_SUGGESTIONS.slice(0, 6).map((s) => (
-                  <button
-                    key={s.label}
-                    onClick={() => {
-                      if (hasApp) {
-                        applySuggestion(s);
-                      } else {
-                        setPrompt(s.prompt);
-                        setSideTab("chat");
-                      }
-                    }}
-                    disabled={loading}
-                    className="flex items-center gap-1 rounded-full border border-border bg-background/50 px-2 py-0.5 text-[10px] hover:border-primary/40 hover:bg-primary/5 transition whitespace-nowrap shrink-0 disabled:opacity-50"
-                  >
-                    <s.icon className="h-3 w-3 text-primary/70" /> {s.label} <span className="text-primary/60 ml-0.5">Aplicar</span>
-                  </button>
-                ))}
-              </div>
+          {/* Suggestions strip above preview — siempre visible, incluso durante la generación */}
+          <div className="shrink-0 border-b border-border bg-card/30 px-2 py-1.5 overflow-x-auto">
+            <div className="flex items-center gap-1.5">
+              <Lightbulb className="h-3 w-3 text-primary shrink-0" />
+              <span className="text-[10px] font-medium text-muted-foreground shrink-0 mr-1">
+                Sugerencias IA:
+              </span>
+              {SMART_SUGGESTIONS.slice(0, 8).map((s) => (
+                <button
+                  key={s.label}
+                  onClick={() => {
+                    if (loading) {
+                      toast.info("Generando…", {
+                        description: "Espera a que termine la generación actual.",
+                      });
+                      return;
+                    }
+                    if (hasApp) {
+                      applySuggestion(s);
+                    } else {
+                      setPrompt(s.prompt);
+                      setSideTab("chat");
+                    }
+                  }}
+                  className={`flex items-center gap-1 rounded-full border border-border bg-background/50 px-2 py-0.5 text-[10px] hover:border-primary/40 hover:bg-primary/5 transition whitespace-nowrap shrink-0 ${loading ? "opacity-60 cursor-wait" : ""}`}
+                >
+                  <s.icon className="h-3 w-3 text-primary/70" /> {s.label} <span className="text-primary/60 ml-0.5">Aplicar</span>
+                </button>
+              ))}
             </div>
-          )}
+          </div>
           <div className="flex-1 min-h-0 relative">
             <PreviewPane html={html || lastValidHtml} />
           {!html && lastValidHtml && (
