@@ -139,7 +139,13 @@ export const generateAI = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId, claims } = context as { supabase: any; userId: string; claims?: any };
     const primary = data.provider as AIProviderId;
-    const isTestAdmin = String(claims?.email || "").toLowerCase() === "nexaapporg@gmail.com";
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const isTestAdmin = [claims?.email, profile?.email]
+      .some((email) => String(email || "").toLowerCase() === "nexaapporg@gmail.com");
     console.log("[Builder] prompt recibido", { chars: data.prompt.length, mode: data.mode, provider: primary, model: data.model });
 
     const timeoutController = new AbortController();
