@@ -271,6 +271,25 @@ export function BuilderPage({ projectId }: { projectId?: string } = {}) {
     "Preparando exportación",
   ];
 
+  const PHASES = [
+    { key: "structure", label: "Estructura", icon: LayoutDashboard },
+    { key: "ui", label: "UI", icon: Wand2 },
+    { key: "features", label: "Funcionalidades", icon: Zap },
+  ] as const;
+
+  // Map a stage index (0..5) to a phase index (0..2) so the phase view advances
+  // alongside the existing stage logic without changing generation flow.
+  const stageToPhase = (s: number): number => {
+    if (s < 0) return -1;
+    if (s <= 1) return 0; // Analizando idea / Diseñando UI -> Estructura
+    if (s <= 2) return 1; // Generando código -> UI
+    return 2; // DB / Validando / Exportación -> Funcionalidades
+  };
+
+  useEffect(() => {
+    setPhaseIndex(stageToPhase(stageIndex));
+  }, [stageIndex]);
+
   const persistProject = async (n: string, fs: FileItem[], p: string, description?: string) => {
     const id = await projectsService.save({
       id: currentProjectId,
