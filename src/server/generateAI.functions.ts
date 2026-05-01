@@ -116,19 +116,13 @@ function assertHtmlCompiles(parsed: any): { ok: true } | { ok: false; error: str
   for (const script of scripts as RegExpMatchArray[]) {
     const js = script[1].trim();
     if (!js) continue;
-    const pairs: Array<[string, string]> = [
-      ["(", ")"],
-      ["{", "}"],
-      ["[", "]"],
-    ];
-    for (const [open, close] of pairs) {
-      const opens = (js.match(new RegExp(`\\${open}`, "g")) ?? []).length;
-      const closes = (js.match(new RegExp(`\\${close}`, "g")) ?? []).length;
-      if (opens !== closes)
-        return { ok: false, error: "JavaScript inválido: delimitadores incompletos" };
-    }
     if (/\b(import|export)\s+/m.test(js))
       return { ok: false, error: "JavaScript inválido para HTML standalone" };
+    try {
+      new Function(js);
+    } catch (e: any) {
+      return { ok: false, error: `JavaScript inválido: ${e?.message || "error de sintaxis"}` };
+    }
   }
   return { ok: true };
 }
