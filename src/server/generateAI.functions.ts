@@ -26,36 +26,70 @@ const InputSchema = z.object({
   reason: z.string().min(1).max(120),
 });
 
-const SYSTEM_PROMPT = `Eres Nexa One Builder, un generador experto de aplicaciones web standalone en un solo archivo.
+/** Prompt para apps simples (HTML/CSS/JS en un solo archivo). */
+const SYSTEM_PROMPT_FAST = `Eres Nexa One Builder, generador de apps web standalone en un solo archivo.
 
-Genera SIEMPRE un único archivo HTML completo y autocontenido con HTML, CSS y JavaScript puro (vanilla). NO uses React, Vue, Angular, Supabase, backend, APIs privadas ni frameworks JS. Solo HTML/CSS/JS puro dentro de index.html.
-Prioridad absoluta: primero entrega una app mínima funcional y compilable. Si el usuario pide muchas funciones o el prompt es largo, divide internamente en pasos, implementa primero la base estable y después solo mejoras seguras que no rompan la app.
-
-FASES DE GENERACIÓN (aplica siempre en este orden interno):
-1. ESTRUCTURA BASE: HTML semántico completo con layout y navegación.
-2. UI: Estilos responsive, colores, tipografía y espaciado.
-3. FUNCIONALIDADES: Lógica JS, interactividad, formularios, datos.
-Nunca saltes a la fase 3 sin que las fases 1 y 2 estén completas y estables.
+Genera un único index.html completo y autocontenido con HTML, CSS y JavaScript puro (vanilla). NO uses React, Vue, Angular, backend ni frameworks. Solo HTML/CSS/JS dentro de index.html.
+Prioriza funcionalidad real, UI profesional y código completo. Nada de maquetas vacías. Ningún botón sin listener/acción.
 
 REGLAS ESTRICTAS:
-1. Devuelve SOLO un objeto JSON válido con esta forma exacta:
+1. Devuelve SOLO un objeto JSON válido con esta forma:
 {
-  "name": "Nombre corto del proyecto",
-  "description": "Descripción de 1 línea",
+  "name": "Nombre corto",
+  "description": "Descripción 1 línea",
+  "mode": "fast",
   "files": [
     { "path": "index.html", "content": "<!doctype html>...", "language": "html" }
   ],
   "suggestions": ["mejora 1", "mejora 2", "mejora 3"]
 }
+2. index.html DEBE contener: <!doctype html>, <html>, <head>, <body>, al menos un <style> con CSS real y al menos un <script> embebido sin src con JS funcional.
+3. NO uses import/export ni módulos ES. NO uses backticks que rompan el JSON.
+4. Persistencia con localStorage si hace falta. Sin backend.
+5. Sin markdown fences. JSON puro.
+6. files debe contener SOLO index.html.`;
 
-2. El index.html DEBE incluir estos bloques reales: <!doctype html>, <html>, <head>, <body> y al menos un <script> embebido sin src.
-3. Incluye CSS real dentro de <style>. Todo el JS debe ir dentro de <script> en el mismo archivo.
-4. Diseño moderno, responsive y usable. Botones visibles con estados y acciones reales.
-5. Funcional de verdad: JS vanilla embebido que funcione sin errores de sintaxis. NO uses import/export, módulos ES, JSX ni transpilación. No dejes botones sin listener/acción.
-6. NO incluyas markdown fences. Devuelve JSON puro.
-7. NO uses backticks dentro del HTML que rompan el JSON: usa comillas simples o escapa.
-8. Si la app necesita guardar datos, usa localStorage. No uses base de datos ni backend.
-9. La respuesta debe contener SOLO files[0].path = "index.html". No generes README, SQL, manifest, netlify ni otros archivos.`;
+/** Prompt para apps PRO (estructura tipo proyecto, multi-archivo). */
+const SYSTEM_PROMPT_PRO = `Eres Nexa One Builder PRO, generador de aplicaciones profesionales tipo SaaS / PWA / Play Store.
+
+Genera una aplicación completa y avanzada con estructura de proyecto real (multi-archivo) según la petición del usuario. Prioriza funcionalidad real, UI profesional, código completo y producción-ready. Nada de maquetas. Ningún botón sin acción real.
+
+Stack recomendado: React + TypeScript + Vite. Puedes usar Tailwind, Supabase, PWA manifest y SQL si la app lo requiere. Si el usuario pide otro stack, respétalo.
+
+REGLAS ESTRICTAS:
+1. Devuelve SOLO un objeto JSON válido con esta forma:
+{
+  "name": "Nombre del proyecto",
+  "description": "Descripción 1-2 líneas",
+  "mode": "pro",
+  "files": [
+    { "path": "package.json", "content": "...", "language": "json" },
+    { "path": "index.html", "content": "...", "language": "html" },
+    { "path": "src/main.tsx", "content": "...", "language": "tsx" },
+    { "path": "src/App.tsx", "content": "...", "language": "tsx" },
+    { "path": "manifest.json", "content": "...", "language": "json" },
+    { "path": "README.md", "content": "...", "language": "md" }
+  ],
+  "suggestions": ["mejora 1", "mejora 2", "mejora 3"]
+}
+2. files DEBE incluir como mínimo: package.json, index.html y (src/App.tsx o src/main.tsx). Añade los demás archivos que la app necesite (rutas, componentes, schema.sql si usa Supabase, manifest.json si es PWA, README.md, etc.).
+3. Código completo y funcional, sin TODOs ni "..." de relleno. Implementa toda la lógica pedida.
+4. UI profesional, responsive, accesible. Botones con acciones reales conectadas.
+5. Sin markdown fences. JSON puro. Escapa correctamente comillas y saltos de línea dentro de los strings de content.`;
+
+/** Heurística: decide si el prompt requiere modo PRO. */
+function detectMode(prompt: string, mode: string): "fast" | "pro" {
+  if (mode !== "generate") return "fast"; // improve/fix/etc. operan sobre lo existente
+  const p = prompt.toLowerCase();
+  const proKeywords = [
+    "saas", "login", "auth", "supabase", "pwa", "play store", "playstore",
+    "dashboard", "pago", "pagos", "checkout", "stripe", "mercadopago",
+    "admin", "marketplace", "profesional", "react", "vite", "next",
+    "multi-página", "multi pagina", "multipágina", "rutas", "router",
+    "base de datos", "database", "api rest", "backend", "crud completo",
+  ];
+  return proKeywords.some((k) => p.includes(k)) ? "pro" : "fast";
+}
 
 const MODE_INSTRUCTIONS: Record<string, string> = {
   generate: "Genera la aplicación desde cero según la petición.",
@@ -76,7 +110,7 @@ const FALLBACK_MODEL: Record<AIProviderId, string> = {
 };
 const ALL_PROVIDERS: AIProviderId[] = ["openai", "gemini", "claude", "grok"];
 
-/** Valida que el JSON parseado tenga un único index.html completo. */
+/** Valida que el JSON parseado tenga un único index.html completo (modo rápido). */
 function validateStandaloneHtml(parsed: any): { ok: true; html: string } | { ok: false; error: string } {
   if (!parsed || !Array.isArray(parsed.files) || parsed.files.length === 0)
     return { ok: false, error: "Respuesta inválida: falta files" };
@@ -100,6 +134,27 @@ function validateStandaloneHtml(parsed: any): { ok: true; html: string } | { ok:
     if (!pattern.test(content)) return { ok: false, error: `HTML inválido: falta ${label}` };
   }
   return { ok: true, html: content };
+}
+
+/** Valida que el JSON parseado tenga estructura mínima de proyecto PRO. */
+function validateProProject(parsed: any): { ok: true } | { ok: false; error: string } {
+  if (!parsed || !Array.isArray(parsed.files) || parsed.files.length < 2)
+    return { ok: false, error: "Respuesta PRO inválida: faltan archivos del proyecto" };
+  const paths = parsed.files
+    .map((f: any) => (typeof f?.path === "string" ? f.path : ""))
+    .filter(Boolean);
+  const hasPkg = paths.includes("package.json");
+  const hasIndex = paths.includes("index.html");
+  const hasEntry = paths.some((p: string) => p === "src/App.tsx" || p === "src/main.tsx");
+  if (!hasPkg) return { ok: false, error: "Respuesta PRO inválida: falta package.json" };
+  if (!hasIndex) return { ok: false, error: "Respuesta PRO inválida: falta index.html" };
+  if (!hasEntry)
+    return { ok: false, error: "Respuesta PRO inválida: falta src/App.tsx o src/main.tsx" };
+  for (const f of parsed.files) {
+    if (!f || typeof f.content !== "string" || f.content.trim().length < 10)
+      return { ok: false, error: `Respuesta PRO inválida: archivo vacío (${f?.path})` };
+  }
+  return { ok: true };
 }
 
 function splitPromptIntoSteps(prompt: string): string {
@@ -165,6 +220,8 @@ export const generateAI = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId, claims } = context as { supabase: any; userId: string; claims?: any };
     const primary = data.provider as AIProviderId;
+    const buildMode = detectMode(data.prompt, data.mode);
+    const SYSTEM_PROMPT = buildMode === "pro" ? SYSTEM_PROMPT_PRO : SYSTEM_PROMPT_FAST;
     const { data: profile } = await supabase
       .from("profiles")
       .select("email")
@@ -172,16 +229,20 @@ export const generateAI = createServerFn({ method: "POST" })
       .maybeSingle();
     const isTestAdmin = [claims?.email, profile?.email]
       .some((email) => String(email || "").toLowerCase() === "nexaapporg@gmail.com");
-    console.log("[Builder] prompt recibido", { chars: data.prompt.length, mode: data.mode, provider: primary, model: data.model });
+    console.log("[Builder] prompt recibido", { chars: data.prompt.length, mode: data.mode, buildMode, provider: primary, model: data.model });
 
     const timeoutController = new AbortController();
     const timeoutId = setTimeout(() => timeoutController.abort(), 59_000);
 
     // 1. Construir el prompt unificado.
+    const proHint =
+      buildMode === "pro"
+        ? " Genera una aplicación profesional completa con estructura multi-archivo, código real y funcionalidad end-to-end. NO entregues una maqueta."
+        : " Genera una app simple y funcional en un único index.html, con UI profesional y lógica real.";
     const userMessage = [
-      `${MODE_INSTRUCTIONS[data.mode]} Primero crea una base mínima funcional y compilable. Luego integra pasos adicionales solo si no comprometen la estabilidad.`,
+      `${MODE_INSTRUCTIONS[data.mode]}${proHint}`,
       data.context ? `\n\n--- CÓDIGO ACTUAL ---\n${data.context}\n--- FIN ---` : "",
-      `\n\nPETICIÓN DEL USUARIO DIVIDIDA EN PASOS INTERNOS:\n${splitPromptIntoSteps(data.prompt)}`,
+      `\n\nPETICIÓN DEL USUARIO:\n${splitPromptIntoSteps(data.prompt)}`,
     ].join("");
 
     // 2. Cadena de intentos: primario primero, luego el resto como fallback.
@@ -225,16 +286,26 @@ export const generateAI = createServerFn({ method: "POST" })
           errors.push(`${attempt.provider}: JSON inválido (${e.message})`);
           continue;
         }
-        const htmlCheck = validateStandaloneHtml(parsed);
-        if (!htmlCheck.ok) {
-          errors.push(`${attempt.provider}: ${htmlCheck.error}`);
-          continue;
-        }
-        console.log("[Builder] HTML validado", { provider: attempt.provider, bytes: htmlCheck.html.length });
-        const compileCheck = assertHtmlCompiles(parsed);
-        if (!compileCheck.ok) {
-          errors.push(`${attempt.provider}: ${compileCheck.error}`);
-          continue;
+        if (buildMode === "fast") {
+          const htmlCheck = validateStandaloneHtml(parsed);
+          if (!htmlCheck.ok) {
+            errors.push(`${attempt.provider}: ${htmlCheck.error}`);
+            continue;
+          }
+          console.log("[Builder] HTML validado", { provider: attempt.provider, bytes: htmlCheck.html.length });
+          const compileCheck = assertHtmlCompiles(parsed);
+          if (!compileCheck.ok) {
+            errors.push(`${attempt.provider}: ${compileCheck.error}`);
+            continue;
+          }
+        } else {
+          const proCheck = validateProProject(parsed);
+          if (!proCheck.ok) {
+            errors.push(`${attempt.provider}: ${proCheck.error}`);
+            continue;
+          }
+          console.log("[Builder] proyecto PRO validado", { provider: attempt.provider, files: parsed.files.length });
+          // No degradamos a modo rápido: si PRO falla en todos los proveedores, devolvemos error.
         }
         success = { provider: attempt.provider, model: attempt.model, raw: aiResp.text, parsed };
         break;
@@ -300,6 +371,7 @@ export const generateAI = createServerFn({ method: "POST" })
       ok: true as const,
       name: success.parsed.name || "App generada",
       description: success.parsed.description || "",
+      mode: buildMode,
       files: success.parsed.files,
       suggestions: Array.isArray(success.parsed.suggestions) ? success.parsed.suggestions : [],
       provider: success.provider,
